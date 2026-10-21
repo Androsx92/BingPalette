@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bing Palette</string>
+    <string name="service_description">Used only to open Settings > Wallpaper and style > Colour palette and tap Apply after the daily Bing wallpaper has been set. It reads nothing else.</string>
+</resources>
