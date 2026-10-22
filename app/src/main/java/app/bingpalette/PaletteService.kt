@@ -1,35 +1,37 @@
 package app.bingpalette
 
 import android.accessibilityservice.AccessibilityService
+import android.app.KeyguardManager
 import android.app.WallpaperManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
-import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 /**
- * 1. Downloads today's Bing image and sets it as home + lock wallpaper.
- * 2. Opens Settings > Wallpaper and style > Colour palette and taps "Apply".
+ * 1. Downloads today's Bing image and sets it as wallpaper (home / lock / both).
+ * 2. Optionally opens Settings > Wallpaper and style > Colour palette and taps "Apply".
  *
- * Runs automatically on the first unlock of the day (after the configured hour),
- * or on demand via runNow().
+ * Runs automatically once per day per screen (inner / cover on a foldable):
+ * on unlock, or when the phone is folded / unfolded.
  */
 class PaletteService : AccessibilityService() {
 
@@ -40,7 +42,6 @@ class PaletteService : AccessibilityService() {
         @Volatile
         var instance: PaletteService? = null
 
-        // UI labels of the Samsung One UI screens (English UI, as in your recordings).
         private val PALETTE_ROW = listOf("Colour palette", "Color palette")
         private val WALLPAPER_ROW = listOf("Wallpaper and style")
         private val PALETTE_PAGE_MARKER = listOf("Apply palette to app icons")
@@ -49,20 +50,60 @@ class PaletteService : AccessibilityService() {
 
     private val main = Handler(Looper.getMainLooper())
     private var running = false
+    private var lastAttemptAt = 0L
+    private var runState = "cover"
     private var startedAt = 0L
     private var paletteSeenAt = 0L
     private var applied = false
     private var appliedAt = 0L
 
+    private fun prefs() = getSharedPreferences(PREFS, MODE_PRIVATE)
+    private fun today() = SimpleDateFormat("yyyyMMdd", Locale.US).format(Calendar.getInstance().time)
+
+    /** "inner" = unfolded / large display, "cover" = folded or normal phone. */
+    private fun screenState(): String {
+        val dm = DisplayMetrics()
+        val d = (getSystemService(DISPLAY_SERVICE) as DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)
+        @Suppress("DEPRECATION")
+        d.getRealMetrics(dm)
+        val minDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
+        return if (minDp >= 500) "inner" else "cover"
+    }
+
+    private fun shouldRun(): Boolean {
+        val p = prefs()
+        if (!p.getBoolean("auto", true)) return false
+        val state = screenState()
+        when (p.getInt("screens", 0)) {
+            1 -> if (state != "inner") return false
+            2 -> if (state != "cover") return false
+        }
+        val cal = Calendar.getInstance()
+        val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        if (minutes < p.getInt("hour", 5) * 60 + p.getInt("minute", 0)) return false
+        if (p.getString("last_$state", "") == today()) return false
+        if (lastAttemptAt != 0L && SystemClock.elapsedRealtime() - lastAttemptAt < 10 * 60 * 1000) return false
+        return true
+    }
+
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val p = getSharedPreferences(PREFS, MODE_PRIVATE)
-            if (!p.getBoolean("auto", true)) return
-            val cal = Calendar.getInstance()
-            if (cal.get(Calendar.HOUR_OF_DAY) < p.getInt("hour", 5)) return
-            val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(cal.time)
-            if (p.getString("last", "") == today) return
-            runNow()
+            if (shouldRun()) runNow()
+        }
+    }
+
+    private val foldCheck = Runnable {
+        val km = getSystemService(KeyguardManager::class.java)
+        val pm = getSystemService(PowerManager::class.java)
+        if (!running && pm.isInteractive && !km.isKeyguardLocked && shouldRun()) runNow()
+    }
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            main.removeCallbacks(foldCheck)
+            main.postDelayed(foldCheck, 3000)
         }
     }
 
@@ -74,12 +115,14 @@ class PaletteService : AccessibilityService() {
         } else {
             registerReceiver(unlockReceiver, filter)
         }
+        (getSystemService(DISPLAY_SERVICE) as DisplayManager).registerDisplayListener(displayListener, main)
     }
 
     override fun onDestroy() {
         instance = null
         try {
             unregisterReceiver(unlockReceiver)
+            (getSystemService(DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(displayListener)
         } catch (_: Exception) {
         }
         super.onDestroy()
@@ -93,7 +136,9 @@ class PaletteService : AccessibilityService() {
     fun runNow() {
         if (running) return
         running = true
-        toast("Bing wallpaper: starting")
+        lastAttemptAt = SystemClock.elapsedRealtime()
+        runState = screenState()
+        toast("Bing wallpaper: starting (${if (runState == "inner") "inner screen" else "cover screen"})")
         Thread {
             var error: String? = null
             try {
@@ -104,9 +149,13 @@ class PaletteService : AccessibilityService() {
             }
             main.post {
                 if (error == null) {
-                    val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Calendar.getInstance().time)
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("last", today).apply()
-                    beginPalette()
+                    prefs().edit().putString("last_$runState", today()).apply()
+                    if (prefs().getBoolean("palette", true)) {
+                        beginPalette()
+                    } else {
+                        running = false
+                        toast("Wallpaper set")
+                    }
                 } else {
                     running = false
                     toast("Bing wallpaper failed: $error")
@@ -116,35 +165,24 @@ class PaletteService : AccessibilityService() {
     }
 
     private fun fetchAndSetWallpaper() {
-        val mkt = getSharedPreferences(PREFS, MODE_PRIVATE).getString("mkt", "de-DE") ?: "de-DE"
-        val meta = httpGet("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=$mkt")
-        val base = JSONObject(String(meta)).getJSONArray("images").getJSONObject(0).getString("urlbase")
-
+        val p = prefs()
+        val mkt = p.getString("mkt", "de-DE") ?: "de-DE"
+        val info = Bing.info(mkt)
         val bytes = try {
-            httpGet("https://www.bing.com${base}_UHD.jpg")
+            Bing.image(info, "UHD")
         } catch (e: Exception) {
-            httpGet("https://www.bing.com${base}_1920x1080.jpg")
+            Bing.image(info, "1920x1080")
         }
         val file = File(cacheDir, "bing.jpg")
         file.writeBytes(bytes)
 
-        FileInputStream(file).use { input ->
-            WallpaperManager.getInstance(this).setStream(
-                input, null, true,
-                WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
-            )
+        val flags = when (p.getInt("target", 0)) {
+            1 -> WallpaperManager.FLAG_SYSTEM
+            2 -> WallpaperManager.FLAG_LOCK
+            else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
         }
-    }
-
-    private fun httpGet(url: String): ByteArray {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15000
-        c.readTimeout = 30000
-        try {
-            if (c.responseCode != 200) throw RuntimeException("HTTP ${c.responseCode}")
-            return c.inputStream.use { it.readBytes() }
-        } finally {
-            c.disconnect()
+        FileInputStream(file).use { input ->
+            WallpaperManager.getInstance(this).setStream(input, null, true, flags)
         }
     }
 
@@ -156,7 +194,6 @@ class PaletteService : AccessibilityService() {
         applied = false
         appliedAt = 0L
         startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        // give the system a few seconds to process the new wallpaper
         main.postDelayed(tick, 4000)
     }
 
@@ -184,7 +221,6 @@ class PaletteService : AccessibilityService() {
             return
         }
 
-        // On the "Colour palette" page: tap Apply once it is enabled.
         if (find(root, PALETTE_PAGE_MARKER) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
             val apply = find(root, APPLY)
@@ -193,17 +229,13 @@ class PaletteService : AccessibilityService() {
                 applied = true
                 appliedAt = now
             } else if (now - paletteSeenAt > 5000) {
-                // Apply stays disabled = palette already matches the wallpaper.
                 finish(true)
             }
             return
         }
 
-        // On "Wallpaper and style": open Colour palette.
         find(root, PALETTE_ROW)?.let { if (click(it)) return }
-        // On the main Settings list: open Wallpaper and style.
         find(root, WALLPAPER_ROW)?.let { if (click(it)) return }
-        // Not visible yet: scroll the lists.
         scroll(root)
     }
 

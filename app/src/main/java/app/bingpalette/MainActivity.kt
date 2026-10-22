@@ -1,52 +1,41 @@
 package app.bingpalette
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.provider.Settings
-import android.text.Editable
-import android.text.TextWatcher
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.textfield.TextInputEditText
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusTitle: TextView
     private lateinit var statusText: TextView
     private lateinit var enableButton: MaterialButton
+    private lateinit var previewImage: ImageView
+    private lateinit var previewTitle: TextView
+    private lateinit var previewSub: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val prefs = getSharedPreferences(PaletteService.PREFS, MODE_PRIVATE)
 
         statusTitle = findViewById(R.id.statusTitle)
         statusText = findViewById(R.id.statusText)
         enableButton = findViewById(R.id.enableButton)
+        previewImage = findViewById(R.id.previewImage)
+        previewTitle = findViewById(R.id.previewTitle)
+        previewSub = findViewById(R.id.previewSub)
+
         enableButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-
-        val autoSwitch = findViewById<MaterialSwitch>(R.id.autoSwitch)
-        autoSwitch.isChecked = prefs.getBoolean("auto", true)
-        autoSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("auto", on).apply() }
-
-        val hourInput = findViewById<TextInputEditText>(R.id.hourInput)
-        hourInput.setText(prefs.getInt("hour", 5).toString())
-        hourInput.addTextChangedListener(watcher { s ->
-            val h = s.toIntOrNull()?.coerceIn(0, 23) ?: 5
-            prefs.edit().putInt("hour", h).apply()
-        })
-
-        val marketInput = findViewById<TextInputEditText>(R.id.marketInput)
-        marketInput.setText(prefs.getString("mkt", "de-DE"))
-        marketInput.addTextChangedListener(watcher { s ->
-            prefs.edit().putString("mkt", s.trim().ifEmpty { "de-DE" }).apply()
-        })
-
+        findViewById<MaterialButton>(R.id.settingsButton).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
         findViewById<MaterialButton>(R.id.runButton).setOnClickListener {
             val svc = PaletteService.instance
             if (svc == null) {
@@ -68,11 +57,27 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "Turn on Bing Palette in Accessibility > Installed apps."
             enableButton.text = "Open accessibility settings"
         }
+        loadPreview()
     }
 
-    private fun watcher(onChange: (String) -> Unit) = object : TextWatcher {
-        override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
-        override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
-        override fun afterTextChanged(s: Editable?) = onChange(s?.toString() ?: "")
+    private fun loadPreview() {
+        val mkt = getSharedPreferences(PaletteService.PREFS, MODE_PRIVATE).getString("mkt", "de-DE") ?: "de-DE"
+        previewSub.text = Markets.label(mkt)
+        Thread {
+            try {
+                val info = Bing.info(mkt)
+                val bytes = Bing.image(info, "1366x768")
+                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                runOnUiThread {
+                    if (!isDestroyed) {
+                        previewImage.setImageBitmap(bmp)
+                        previewTitle.text = info.title.ifEmpty { "Today's image" }
+                        previewSub.text = Markets.label(mkt) + "\n" + info.copyright
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { if (!isDestroyed) previewTitle.text = "Preview unavailable (offline?)" }
+            }
+        }.start()
     }
 }
