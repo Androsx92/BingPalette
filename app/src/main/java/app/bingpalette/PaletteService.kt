@@ -188,13 +188,26 @@ class PaletteService : AccessibilityService() {
 
     // ---------------------------------------------------------------- step 2: palette
 
+    private var launches = 0
+    private var lastLaunchAt = 0L
+    private var scrollTries = 0
+
+    private fun launchSettings() {
+        launches++
+        lastLaunchAt = SystemClock.uptimeMillis()
+        startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     private fun beginPalette() {
         startedAt = SystemClock.uptimeMillis()
         paletteSeenAt = 0L
         applied = false
         appliedAt = 0L
-        startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        main.postDelayed(tick, 4000)
+        launches = 0
+        scrollTries = 0
+        toast("Updating colour palette - please don't touch the screen")
+        launchSettings()
+        main.postDelayed(tick, 3000)
     }
 
     private val tick = object : Runnable {
@@ -210,14 +223,23 @@ class PaletteService : AccessibilityService() {
 
     private fun step() {
         val now = SystemClock.uptimeMillis()
-        if (now - startedAt > 60000) {
-            finish(false)
+        if (now - startedAt > 45000) {
+            finish("Palette step timed out - the wallpaper itself is set")
             return
         }
         val root = rootInActiveWindow ?: return
 
+        // Only ever touch Settings (or Samsung's palette screens). On any other screen,
+        // e.g. the home screen while Settings is still opening, do nothing at all.
+        val pkg = root.packageName?.toString() ?: ""
+        val inSettings = pkg == "com.android.settings"
+        if (!inSettings && !pkg.startsWith("com.samsung")) {
+            if (launches < 3 && now - lastLaunchAt > 6000) launchSettings()
+            return
+        }
+
         if (applied) {
-            if (now - appliedAt > 3500) finish(true)
+            if (now - appliedAt > 3500) finish("Palette applied")
             return
         }
 
@@ -229,21 +251,25 @@ class PaletteService : AccessibilityService() {
                 applied = true
                 appliedAt = now
             } else if (now - paletteSeenAt > 5000) {
-                finish(true)
+                finish("Palette already up to date")
             }
             return
         }
 
         find(root, PALETTE_ROW)?.let { if (click(it)) return }
         find(root, WALLPAPER_ROW)?.let { if (click(it)) return }
-        scroll(root)
+        // Label not visible yet: scroll the Settings list a few times only.
+        if (inSettings && scrollTries < 10) {
+            scroll(root, scrollTries < 6)
+            scrollTries++
+        }
     }
 
-    private fun finish(ok: Boolean) {
+    private fun finish(message: String) {
         running = false
         main.removeCallbacks(tick)
         performGlobalAction(GLOBAL_ACTION_HOME)
-        toast(if (ok) "Wallpaper + palette done" else "Palette step timed out")
+        toast(message)
     }
 
     // ---------------------------------------------------------------- helpers
@@ -266,14 +292,12 @@ class PaletteService : AccessibilityService() {
         return false
     }
 
-    private fun scroll(root: AccessibilityNodeInfo) {
+    private fun scroll(root: AccessibilityNodeInfo, forward: Boolean) {
         val scrollables = ArrayList<AccessibilityNodeInfo>()
         collectScrollable(root, scrollables)
-        for (s in scrollables) {
-            if (!s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) {
-                s.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
-            }
-        }
+        val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        for (s in scrollables) s.performAction(action)
     }
 
     private fun collectScrollable(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {

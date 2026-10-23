@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Material 3 with Material You dynamic colours (Android 12+), follows system dark mode -->
-    <style name="Theme.BingPalette" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
+    <!-- Material 3 + Material You colours, edge-to-edge (transparent system bars) -->
+    <style name="Theme.BingPalette" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
 </resources>
