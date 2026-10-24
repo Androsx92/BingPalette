@@ -191,6 +191,8 @@ class PaletteService : AccessibilityService() {
     private var launches = 0
     private var lastLaunchAt = 0L
     private var scrollTries = 0
+    private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
+    private var phaseAt = 0L
 
     private fun launchSettings() {
         launches++
@@ -203,6 +205,8 @@ class PaletteService : AccessibilityService() {
         paletteSeenAt = 0L
         applied = false
         appliedAt = 0L
+        palettePhase = 0
+        phaseAt = 0L
         launches = 0
         scrollTries = 0
         toast("Updating colour palette - please don't touch the screen")
@@ -238,20 +242,46 @@ class PaletteService : AccessibilityService() {
             return
         }
 
-        if (applied) {
-            if (now - appliedAt > 3500) finish("Palette applied")
-            return
-        }
-
+        // On the "Colour palette" page. One UI keeps showing the colour swatches of the
+        // PREVIOUS wallpaper (with Apply greyed out) until the palette switch is turned
+        // off and on again, so we do exactly that, then press Apply if it lights up.
         if (find(root, PALETTE_PAGE_MARKER) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
-            val apply = find(root, APPLY)
-            if (apply != null && apply.isEnabled) {
-                click(apply)
-                applied = true
-                appliedAt = now
-            } else if (now - paletteSeenAt > 5000) {
-                finish("Palette already up to date")
+            if (now - paletteSeenAt < 1500) return // let the page finish loading
+            when (palettePhase) {
+                0 -> {
+                    val t = findToggle(root)
+                    if (t == null) {
+                        finish("Couldn't find the Colour palette switch")
+                        return
+                    }
+                    val isOn = if (t.isCheckable) t.isChecked else true
+                    click(t)
+                    palettePhase = if (isOn) 1 else 2 // was on: switch off first; was off: just switch on
+                    phaseAt = now
+                }
+                1 -> if (now - phaseAt > 2500) {
+                    findToggle(root)?.let { click(it) } // switch back on: regenerates the swatches
+                    palettePhase = 2
+                    phaseAt = now
+                }
+                2 -> if (now - phaseAt > 4000) {
+                    val t = findToggle(root)
+                    if (t != null && t.isCheckable && !t.isChecked) {
+                        click(t) // make sure the palette ends up switched ON
+                        phaseAt = now
+                        return
+                    }
+                    val apply = find(root, APPLY)
+                    if (apply != null && apply.isEnabled) {
+                        click(apply)
+                        palettePhase = 3
+                        appliedAt = now
+                    } else if (now - phaseAt > 9000) {
+                        finish("Palette refreshed")
+                    }
+                }
+                3 -> if (now - appliedAt > 3500) finish("Palette refreshed and applied")
             }
             return
         }
@@ -281,6 +311,27 @@ class PaletteService : AccessibilityService() {
             if (hit != null) return hit
         }
         return null
+    }
+
+    /** The "Colour palette" on/off switch = the top-most checkable node on the page. */
+    private fun findToggle(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val checkable = ArrayList<AccessibilityNodeInfo>()
+        collectCheckable(root, checkable)
+        val rect = android.graphics.Rect()
+        val top = checkable.minByOrNull { n -> n.getBoundsInScreen(rect); rect.top }
+        if (top != null) return top
+        // Fallback: the "Colour palette" label that sits lowest on screen (the row, not the title).
+        val rowRect = android.graphics.Rect()
+        return root.findAccessibilityNodeInfosByText(PALETTE_ROW[0])
+            ?.filter { it.text?.toString()?.trim().equals(PALETTE_ROW[0], ignoreCase = true) }
+            ?.maxByOrNull { n -> n.getBoundsInScreen(rowRect); rowRect.top }
+    }
+
+    private fun collectCheckable(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
+        if (n.isCheckable && n.isVisibleToUser) out.add(n)
+        for (i in 0 until n.childCount) {
+            n.getChild(i)?.let { collectCheckable(it, out) }
+        }
     }
 
     private fun click(node: AccessibilityNodeInfo): Boolean {
