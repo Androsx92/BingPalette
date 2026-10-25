@@ -14,7 +14,21 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.util.DisplayMetrics
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -120,6 +134,7 @@ class PaletteService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        hideCover()
         try {
             unregisterReceiver(unlockReceiver)
             (getSystemService(DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(displayListener)
@@ -227,6 +242,7 @@ class PaletteService : AccessibilityService() {
         launches = 0
         scrollTries = 0
         toast("Updating colour palette - please don't touch the screen")
+        showCover()
         launchSettings()
         main.postDelayed(tick, 3000)
     }
@@ -279,6 +295,7 @@ class PaletteService : AccessibilityService() {
             val wantOn = round == 1
             when (palettePhase) {
                 0 -> {
+                    setStatus(if (wantOn) "Switching colour palette on…" else "Switching colour palette off…")
                     val isOn = if (t.isCheckable) t.isChecked else !wantOn
                     if (isOn != wantOn) click(t)
                     palettePhase = 1
@@ -288,6 +305,7 @@ class PaletteService : AccessibilityService() {
                 1 -> if (now - phaseAt > 3500) {
                     val apply = find(root, APPLY)
                     if (apply != null) {
+                        setStatus("Pressing Apply (${round + 1}/2)…")
                         click(apply)
                         applyPresses++
                         palettePhase = 2
@@ -318,6 +336,7 @@ class PaletteService : AccessibilityService() {
             if (round == 0) {
                 round = 1
                 palettePhase = 0
+                setStatus("Opening Colour palette again…")
             } else {
                 finish("Palette refreshed and applied")
                 return
@@ -333,8 +352,114 @@ class PaletteService : AccessibilityService() {
         }
     }
 
+    // ---------------------------------------------------------------- cover screen
+
+    private var cover: FrameLayout? = null
+    private var coverStatus: TextView? = null
+
+    /** Full-screen cover (today's image + status card) drawn over Settings while we tap it. */
+    private fun showCover() {
+        if (cover != null || !prefs().getBoolean("cover", true)) return
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val d = resources.displayMetrics.density
+            val frame = FrameLayout(this)
+            frame.setBackgroundColor(Color.parseColor("#101418"))
+
+            val img = ImageView(this)
+            img.scaleType = ImageView.ScaleType.CENTER_CROP
+            try {
+                val f = File(cacheDir, "bing.jpg")
+                val o = BitmapFactory.Options().apply { inSampleSize = 2 }
+                BitmapFactory.decodeFile(f.path, o)?.let { img.setImageBitmap(it) }
+            } catch (e: Exception) {
+                Log.e(TAG, "cover image", e)
+            }
+            frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+            val scrim = View(this)
+            scrim.setBackgroundColor(Color.parseColor("#66000000"))
+            frame.addView(scrim, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+            val card = LinearLayout(this)
+            card.orientation = LinearLayout.VERTICAL
+            card.gravity = Gravity.CENTER_HORIZONTAL
+            val pad = (24 * d).toInt()
+            card.setPadding(pad, pad, pad, pad)
+            card.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#D9000000"))
+                cornerRadius = 28 * d
+            }
+
+            val title = TextView(this)
+            title.text = "Updating colour palette"
+            title.setTextColor(Color.WHITE)
+            title.textSize = 20f
+            card.addView(title)
+
+            val status = TextView(this)
+            status.text = "Wallpaper set"
+            status.setTextColor(Color.parseColor("#DDFFFFFF"))
+            status.textSize = 15f
+            status.gravity = Gravity.CENTER
+            val sp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            sp.topMargin = (8 * d).toInt()
+            card.addView(status, sp)
+
+            val bar = ProgressBar(this)
+            val bp = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
+            bp.topMargin = (16 * d).toInt()
+            card.addView(bar, bp)
+
+            val cancel = Button(this)
+            cancel.text = "Cancel"
+            cancel.setOnClickListener { finish("Cancelled") }
+            val cp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            cp.topMargin = (12 * d).toInt()
+            card.addView(cancel, cp)
+
+            val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+            lp.leftMargin = (32 * d).toInt()
+            lp.rightMargin = (32 * d).toInt()
+            frame.addView(card, lp)
+
+            val wlp = WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.OPAQUE
+            )
+            wlp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            wm.addView(frame, wlp)
+            cover = frame
+            coverStatus = status
+        } catch (e: Exception) {
+            Log.e(TAG, "cover failed", e)
+            cover = null
+        }
+    }
+
+    private fun setStatus(msg: String) {
+        main.post { coverStatus?.text = msg }
+    }
+
+    private fun hideCover() {
+        val c = cover ?: return
+        cover = null
+        coverStatus = null
+        try {
+            (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(c)
+        } catch (e: Exception) {
+            Log.e(TAG, "hide cover", e)
+        }
+    }
+
     private fun finish(message: String) {
         running = false
+        hideCover()
         main.removeCallbacks(tick)
         performGlobalAction(GLOBAL_ACTION_HOME)
         toast(message)

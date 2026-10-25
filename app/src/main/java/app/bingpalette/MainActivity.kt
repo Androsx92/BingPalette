@@ -204,6 +204,10 @@ class MainActivity : AppCompatActivity() {
         val paletteSwitch = findViewById<MaterialSwitch>(R.id.paletteSwitch)
         paletteSwitch.isChecked = prefs.getBoolean("palette", true)
         paletteSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("palette", on).apply() }
+
+        val coverSwitch = findViewById<MaterialSwitch>(R.id.coverSwitch)
+        coverSwitch.isChecked = prefs.getBoolean("cover", true)
+        coverSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("cover", on).apply() }
     }
 
     private fun updateTimeText() {
