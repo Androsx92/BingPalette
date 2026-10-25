@@ -206,6 +206,7 @@ class PaletteService : AccessibilityService() {
     private var lastLaunchAt = 0L
     private var scrollTries = 0
     private var round = 0
+    private var applyPresses = 0
     private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
     private var phaseAt = 0L
 
@@ -267,31 +268,28 @@ class PaletteService : AccessibilityService() {
             // Same sequence as by hand, in two rounds:
             //   round 0: switch OFF -> Apply        (page closes)
             //   round 1: open again, switch ON -> Apply
+            // One UI reports the switch/Apply state of the accessibility nodes unreliably,
+            // so the switch is tapped exactly ONCE per round (never re-checked) and Apply
+            // is pressed after a fixed wait.
             val t = findToggle(root)
             if (t == null) {
                 finish("Couldn't find the Colour palette switch")
                 return
             }
-            val isOn = if (t.isCheckable) t.isChecked else true
             val wantOn = round == 1
             when (palettePhase) {
-                0 -> { // flip the switch if it is not in the wanted state yet
+                0 -> {
+                    val isOn = if (t.isCheckable) t.isChecked else !wantOn
                     if (isOn != wantOn) click(t)
                     palettePhase = 1
                     phaseAt = now
+                    applyPresses = 0
                 }
                 1 -> if (now - phaseAt > 3500) {
-                    if (isOn != wantOn) { // tap did not register: try again
-                        click(t)
-                        phaseAt = now
-                        return
-                    }
-                    // The accessibility "enabled" flag of the Apply label is unreliable on One UI,
-                    // so press it anyway once the switch is in the right state. A greyed-out
-                    // Apply simply ignores the tap.
                     val apply = find(root, APPLY)
                     if (apply != null) {
                         click(apply)
+                        applyPresses++
                         palettePhase = 2
                         appliedAt = now
                     } else if (now - phaseAt > 9000) {
@@ -299,10 +297,14 @@ class PaletteService : AccessibilityService() {
                     }
                 }
                 2 -> if (now - appliedAt > 3500) {
-                    if (round == 0) { // still on the page after Apply: go on with round 1
+                    // Still on the palette page: Apply did not take, press it again (max 3 times)
+                    if (applyPresses < 3) {
+                        find(root, APPLY)?.let { click(it) }
+                        applyPresses++
+                        appliedAt = now
+                    } else if (round == 0) {
                         round = 1
                         palettePhase = 0
-                        phaseAt = now
                     } else {
                         finish("Palette refreshed and applied")
                     }
