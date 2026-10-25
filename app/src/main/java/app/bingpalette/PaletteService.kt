@@ -280,19 +280,22 @@ class PaletteService : AccessibilityService() {
                     palettePhase = 1
                     phaseAt = now
                 }
-                1 -> if (now - phaseAt > 2500) {
+                1 -> if (now - phaseAt > 3500) {
                     if (isOn != wantOn) { // tap did not register: try again
                         click(t)
                         phaseAt = now
                         return
                     }
+                    // The accessibility "enabled" flag of the Apply label is unreliable on One UI,
+                    // so press it anyway once the switch is in the right state. A greyed-out
+                    // Apply simply ignores the tap.
                     val apply = find(root, APPLY)
-                    if (apply != null && apply.isEnabled) {
+                    if (apply != null) {
                         click(apply)
                         palettePhase = 2
                         appliedAt = now
                     } else if (now - phaseAt > 9000) {
-                        finish("Apply did not light up - palette not applied")
+                        finish("Couldn't find the Apply button")
                     }
                 }
                 2 -> if (now - appliedAt > 3500) {

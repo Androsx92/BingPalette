@@ -29,21 +29,45 @@
                 android:paddingEnd="20dp"
                 android:paddingBottom="16dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Bing Palette"
-                    android:textAppearance="?attr/textAppearanceHeadlineLarge"
-                    android:textColor="?attr/colorOnSurface" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
                     android:layout_marginBottom="20dp"
-                    android:text="Today's wallpaper"
-                    android:textAppearance="?attr/textAppearanceBodyLarge"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Bing Palette"
+                            android:textAppearance="?attr/textAppearanceHeadlineLarge"
+                            android:textColor="?attr/colorOnSurface" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Today's wallpaper"
+                            android:textAppearance="?attr/textAppearanceBodyLarge"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/runButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="52dp"
+                        android:text="Run"
+                        android:textSize="16sp"
+                        app:cornerRadius="26dp"
+                        app:icon="@android:drawable/ic_media_play"
+                        app:iconGravity="textStart" />
+                </LinearLayout>
 
                 <com.google.android.material.card.MaterialCardView
                     style="@style/Widget.Material3.CardView.Filled"
@@ -162,28 +186,6 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/runButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="64dp"
-                    android:layout_marginTop="20dp"
-                    android:text="Run now"
-                    android:textSize="18sp"
-                    app:cornerRadius="32dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/wallpaperOnlyButton"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="8dp"
-                    android:text="Wallpaper only"
-                    app:cornerRadius="28dp" />
             </LinearLayout>
         </ScrollView>
 

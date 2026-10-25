@@ -85,15 +85,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<MaterialButton>(R.id.wallpaperOnlyButton).setOnClickListener {
-            val svc = PaletteService.instance
-            if (svc == null) {
-                Toast.makeText(this, "Enable the accessibility service first", Toast.LENGTH_LONG).show()
-            } else {
-                svc.runNow(manual = true, wallpaperOnly = true)
-            }
-        }
-
         // Bottom navigation: Home / Settings
         val home = findViewById<View>(R.id.pageHome)
         val settings = findViewById<View>(R.id.pageSettings)
