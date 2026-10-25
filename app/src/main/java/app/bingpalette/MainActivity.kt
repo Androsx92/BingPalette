@@ -85,6 +85,15 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<MaterialButton>(R.id.wallpaperOnlyButton).setOnClickListener {
+            val svc = PaletteService.instance
+            if (svc == null) {
+                Toast.makeText(this, "Enable the accessibility service first", Toast.LENGTH_LONG).show()
+            } else {
+                svc.runNow(manual = true, wallpaperOnly = true)
+            }
+        }
+
         // Bottom navigation: Home / Settings
         val home = findViewById<View>(R.id.pageHome)
         val settings = findViewById<View>(R.id.pageSettings)
@@ -97,6 +106,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         bindSettings()
+
+        val info = packageManager.getPackageInfo(packageName, 0)
+        findViewById<TextView>(R.id.versionText).text =
+            "Bing Palette v${info.versionName} (build ${info.longVersionCode})"
     }
 
     override fun onResume() {
@@ -193,6 +206,7 @@ class MainActivity : AppCompatActivity() {
             loadPreview()
         }
 
+        bindChips(R.id.paletteWhenGroup, "palette_when", listOf(R.id.chipWhenDaily, R.id.chipWhenManual, R.id.chipWhenBoth), 2)
         bindChips(R.id.targetGroup, "target", listOf(R.id.chipTargetBoth, R.id.chipTargetHome, R.id.chipTargetLock))
         bindChips(R.id.screensGroup, "screens", listOf(R.id.chipScreensBoth, R.id.chipScreensInner, R.id.chipScreensCover))
 
@@ -205,9 +219,9 @@ class MainActivity : AppCompatActivity() {
         timeButton.text = String.format(Locale.US, "%02d:%02d", prefs.getInt("hour", 5), prefs.getInt("minute", 0))
     }
 
-    private fun bindChips(groupId: Int, key: String, ids: List<Int>) {
+    private fun bindChips(groupId: Int, key: String, ids: List<Int>, default: Int = 0) {
         val group = findViewById<ChipGroup>(groupId)
-        group.check(ids[prefs.getInt(key, 0).coerceIn(0, ids.size - 1)])
+        group.check(ids[prefs.getInt(key, default).coerceIn(0, ids.size - 1)])
         group.setOnCheckedStateChangeListener { _, checked ->
             val i = ids.indexOf(checked.firstOrNull())
             if (i >= 0) prefs.edit().putInt(key, i).apply()

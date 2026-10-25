@@ -88,14 +88,14 @@ class PaletteService : AccessibilityService() {
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (shouldRun()) runNow()
+            if (shouldRun()) runNow(manual = false)
         }
     }
 
     private val foldCheck = Runnable {
         val km = getSystemService(KeyguardManager::class.java)
         val pm = getSystemService(PowerManager::class.java)
-        if (!running && pm.isInteractive && !km.isKeyguardLocked && shouldRun()) runNow()
+        if (!running && pm.isInteractive && !km.isKeyguardLocked && shouldRun()) runNow(manual = false)
     }
 
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -133,7 +133,11 @@ class PaletteService : AccessibilityService() {
 
     // ---------------------------------------------------------------- step 1: wallpaper
 
-    fun runNow() {
+    /**
+     * @param manual true when started with the buttons in the app, false for the automatic daily run
+     * @param wallpaperOnly true = never touch the colour palette on this run
+     */
+    fun runNow(manual: Boolean = true, wallpaperOnly: Boolean = false) {
         if (running) return
         running = true
         lastAttemptAt = SystemClock.elapsedRealtime()
@@ -149,8 +153,18 @@ class PaletteService : AccessibilityService() {
             }
             main.post {
                 if (error == null) {
-                    prefs().edit().putString("last_$runState", today()).apply()
-                    if (prefs().getBoolean("palette", true)) {
+                    val p = prefs()
+                    p.edit().putString("last_$runState", today()).apply()
+                    // palette_when: 0 = daily automatic run only, 1 = "Run now" only, 2 = both
+                    val whenOk = when (p.getInt("palette_when", 2)) {
+                        0 -> !manual
+                        1 -> manual
+                        else -> true
+                    }
+                    // an automatic run touches the palette only once per day (not again for the 2nd screen)
+                    val onceOk = manual || p.getString("palette_day", "") != today()
+                    if (p.getBoolean("palette", true) && !wallpaperOnly && whenOk && onceOk) {
+                        if (!manual) p.edit().putString("palette_day", today()).apply()
                         beginPalette()
                     } else {
                         running = false
@@ -191,6 +205,7 @@ class PaletteService : AccessibilityService() {
     private var launches = 0
     private var lastLaunchAt = 0L
     private var scrollTries = 0
+    private var round = 0
     private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
     private var phaseAt = 0L
 
@@ -206,6 +221,7 @@ class PaletteService : AccessibilityService() {
         applied = false
         appliedAt = 0L
         palettePhase = 0
+        round = 0
         phaseAt = 0L
         launches = 0
         scrollTries = 0
@@ -248,42 +264,59 @@ class PaletteService : AccessibilityService() {
         if (find(root, PALETTE_PAGE_MARKER) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
             if (now - paletteSeenAt < 1500) return // let the page finish loading
+            // Same sequence as by hand, in two rounds:
+            //   round 0: switch OFF -> Apply        (page closes)
+            //   round 1: open again, switch ON -> Apply
+            val t = findToggle(root)
+            if (t == null) {
+                finish("Couldn't find the Colour palette switch")
+                return
+            }
+            val isOn = if (t.isCheckable) t.isChecked else true
+            val wantOn = round == 1
             when (palettePhase) {
-                0 -> {
-                    val t = findToggle(root)
-                    if (t == null) {
-                        finish("Couldn't find the Colour palette switch")
-                        return
-                    }
-                    val isOn = if (t.isCheckable) t.isChecked else true
-                    click(t)
-                    palettePhase = if (isOn) 1 else 2 // was on: switch off first; was off: just switch on
+                0 -> { // flip the switch if it is not in the wanted state yet
+                    if (isOn != wantOn) click(t)
+                    palettePhase = 1
                     phaseAt = now
                 }
                 1 -> if (now - phaseAt > 2500) {
-                    findToggle(root)?.let { click(it) } // switch back on: regenerates the swatches
-                    palettePhase = 2
-                    phaseAt = now
-                }
-                2 -> if (now - phaseAt > 4000) {
-                    val t = findToggle(root)
-                    if (t != null && t.isCheckable && !t.isChecked) {
-                        click(t) // make sure the palette ends up switched ON
+                    if (isOn != wantOn) { // tap did not register: try again
+                        click(t)
                         phaseAt = now
                         return
                     }
                     val apply = find(root, APPLY)
                     if (apply != null && apply.isEnabled) {
                         click(apply)
-                        palettePhase = 3
+                        palettePhase = 2
                         appliedAt = now
                     } else if (now - phaseAt > 9000) {
-                        finish("Palette refreshed")
+                        finish("Apply did not light up - palette not applied")
                     }
                 }
-                3 -> if (now - appliedAt > 3500) finish("Palette refreshed and applied")
+                2 -> if (now - appliedAt > 3500) {
+                    if (round == 0) { // still on the page after Apply: go on with round 1
+                        round = 1
+                        palettePhase = 0
+                        phaseAt = now
+                    } else {
+                        finish("Palette refreshed and applied")
+                    }
+                }
             }
             return
+        }
+        // Not on the palette page. After round 0's Apply we land back on "Wallpaper and style".
+        paletteSeenAt = 0L
+        if (palettePhase == 2 && now - appliedAt > 1500) {
+            if (round == 0) {
+                round = 1
+                palettePhase = 0
+            } else {
+                finish("Palette refreshed and applied")
+                return
+            }
         }
 
         find(root, PALETTE_ROW)?.let { if (click(it)) return }
