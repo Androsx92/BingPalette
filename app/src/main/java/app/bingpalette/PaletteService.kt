@@ -220,6 +220,14 @@ class PaletteService : AccessibilityService() {
     private var launches = 0
     private var lastLaunchAt = 0L
     private var scrollTries = 0
+    // speed: 0 = Safe, 1 = Fast, 2 = Ultra fast  (all values in milliseconds)
+    private fun speed() = prefs().getInt("speed", 1).coerceIn(0, 2)
+    private fun tickMs() = longArrayOf(800, 500, 250)[speed()]
+    private fun pageWaitMs() = longArrayOf(1500, 1000, 400)[speed()]
+    private fun toggleWaitMs() = longArrayOf(3500, 2000, 1000)[speed()]
+    private fun applyWaitMs() = longArrayOf(3500, 2500, 1500)[speed()]
+    private fun startDelayMs() = longArrayOf(3000, 2500, 1500)[speed()]
+
     private var round = 0
     private var applyPresses = 0
     private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
@@ -244,7 +252,7 @@ class PaletteService : AccessibilityService() {
         toast("Updating colour palette - please don't touch the screen")
         showCover()
         launchSettings()
-        main.postDelayed(tick, 3000)
+        main.postDelayed(tick, startDelayMs())
     }
 
     private val tick = object : Runnable {
@@ -254,7 +262,7 @@ class PaletteService : AccessibilityService() {
             } catch (e: Exception) {
                 Log.e(TAG, "step failed", e)
             }
-            if (running) main.postDelayed(this, 800)
+            if (running) main.postDelayed(this, tickMs())
         }
     }
 
@@ -280,7 +288,7 @@ class PaletteService : AccessibilityService() {
         // off and on again, so we do exactly that, then press Apply if it lights up.
         if (find(root, PALETTE_PAGE_MARKER) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
-            if (now - paletteSeenAt < 1500) return // let the page finish loading
+            if (now - paletteSeenAt < pageWaitMs()) return // let the page finish loading
             // Same sequence as by hand, in two rounds:
             //   round 0: switch OFF -> Apply        (page closes)
             //   round 1: open again, switch ON -> Apply
@@ -302,7 +310,7 @@ class PaletteService : AccessibilityService() {
                     phaseAt = now
                     applyPresses = 0
                 }
-                1 -> if (now - phaseAt > 3500) {
+                1 -> if (now - phaseAt > toggleWaitMs()) {
                     val apply = find(root, APPLY)
                     if (apply != null) {
                         setStatus("Pressing Apply (${round + 1}/2)…")
@@ -314,9 +322,9 @@ class PaletteService : AccessibilityService() {
                         finish("Couldn't find the Apply button")
                     }
                 }
-                2 -> if (now - appliedAt > 3500) {
-                    // Still on the palette page: Apply did not take, press it again (max 3 times)
-                    if (applyPresses < 3) {
+                2 -> if (now - appliedAt > applyWaitMs()) {
+                    // Still on the palette page: Apply did not take, press it again (max 4 times)
+                    if (applyPresses < 4) {
                         find(root, APPLY)?.let { click(it) }
                         applyPresses++
                         appliedAt = now
@@ -332,7 +340,7 @@ class PaletteService : AccessibilityService() {
         }
         // Not on the palette page. After round 0's Apply we land back on "Wallpaper and style".
         paletteSeenAt = 0L
-        if (palettePhase == 2 && now - appliedAt > 1500) {
+        if (palettePhase == 2 && now - appliedAt > minOf(1500L, applyWaitMs())) {
             if (round == 0) {
                 round = 1
                 palettePhase = 0

@@ -198,6 +198,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         bindChips(R.id.paletteWhenGroup, "palette_when", listOf(R.id.chipWhenDaily, R.id.chipWhenManual, R.id.chipWhenBoth), 2)
+        bindChips(R.id.speedGroup, "speed", listOf(R.id.chipSpeedSafe, R.id.chipSpeedFast, R.id.chipSpeedUltra), 1)
         bindChips(R.id.targetGroup, "target", listOf(R.id.chipTargetBoth, R.id.chipTargetHome, R.id.chipTargetLock))
         bindChips(R.id.screensGroup, "screens", listOf(R.id.chipScreensBoth, R.id.chipScreensInner, R.id.chipScreensCover))
 
