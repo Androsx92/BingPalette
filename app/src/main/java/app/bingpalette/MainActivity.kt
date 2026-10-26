@@ -8,6 +8,8 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.Filter
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -190,7 +192,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         val drop = findViewById<MaterialAutoCompleteTextView>(R.id.marketDrop)
-        drop.setSimpleItems(Markets.codes.map { Markets.label(it) }.toTypedArray())
+        // Adapter that never filters: otherwise the list shrinks to the currently selected country.
+        val labels = Markets.codes.map { Markets.label(it) }
+        drop.setAdapter(object : ArrayAdapter<String>(
+            this, com.google.android.material.R.layout.m3_auto_complete_simple_item, labels
+        ) {
+            override fun getFilter(): Filter = object : Filter() {
+                override fun performFiltering(constraint: CharSequence?) = FilterResults().apply {
+                    values = labels
+                    count = labels.size
+                }
+                override fun publishResults(constraint: CharSequence?, results: FilterResults?) {
+                    notifyDataSetChanged()
+                }
+            }
+        })
         drop.setText(Markets.label(prefs.getString("mkt", "de-DE") ?: "de-DE"), false)
         drop.setOnItemClickListener { _, _, position, _ ->
             prefs.edit().putString("mkt", Markets.codes[position]).apply()

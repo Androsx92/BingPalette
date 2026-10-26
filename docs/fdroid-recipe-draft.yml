@@ -16,14 +16,14 @@ RepoType: git
 Repo: https://github.com/YOURNAME/BingPalette
 
 Builds:
-  - versionName: '2.1'
-    versionCode: 11
-    commit: v2.1
+  - versionName: '2.2'
+    versionCode: 12
+    commit: v2.2
     subdir: app
     gradle:
       - yes
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersionCode: 11
-CurrentVersion: '2.1'
+CurrentVersionCode: 12
+CurrentVersion: '2.2'

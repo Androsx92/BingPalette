@@ -5,7 +5,7 @@
 3. Upload the whole project including `gradlew`, `gradle/wrapper/`, `fastlane/`, `LICENSE`, `.gitignore`, `docs/`.
 4. Add 2-4 screenshots to `fastlane/metadata/android/en-US/images/phoneScreenshots/` (1.png, 2.png ...).
    Use screenshots that do NOT show a copyrighted Bing image in full, or ones you are comfortable with.
-5. Create a release tag: GitHub > Releases > Draft a new release > tag `v2.1` (must match versionName).
+5. Create a release tag: GitHub > Releases > Draft a new release > tag `v2.2` (must match versionName).
 6. Make sure the Actions build is green for that tag.
 7. Fork https://gitlab.com/fdroid/fdroiddata, add `metadata/app.bingpalette.yml` from `docs/fdroid-recipe-draft.yml`
    (replace YOURNAME), and open a merge request. Reviewers may ask for changes; answer them there.
