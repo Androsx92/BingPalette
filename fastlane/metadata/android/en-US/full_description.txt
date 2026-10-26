@@ -12,6 +12,9 @@ Bing Palette sets today's Bing image of the day as your wallpaper and then updat
 <b>Accessibility service</b>
 The colour palette has no public API, so the app uses an Android accessibility service to tap through Samsung's Settings screens. The service only acts while Settings is in front, reads no other content, collects nothing and sends nothing anywhere. The only network access is downloading the Bing image and its description.
 
+<b>Transparency</b>
+I cannot code. This app was written entirely by an AI (Claude, by Anthropic) from my descriptions and screen recordings, and tested only on my own Galaxy Z Fold. I built it because my Pixel changed the colour palette from the daily wallpaper automatically, and One UI does not. Please read the source before trusting it, and bug reports and pull requests are very welcome.
+
 <b>Please note</b>
 • The palette step is made for Samsung One UI in English (labels "Colour palette", "Apply"). The wallpaper part works on any Android 10+ phone.
 • After installing from outside the Play Store, Android may require "Allow restricted settings" in the app info page before the accessibility service can be turned on.
