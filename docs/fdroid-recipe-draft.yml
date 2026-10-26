@@ -1,0 +1,29 @@
+# Draft recipe for https://gitlab.com/fdroid/fdroiddata  ->  metadata/app.bingpalette.yml
+# Replace YOURNAME with your GitHub user name. Check the current F-Droid docs before submitting.
+Categories:
+  - Theming
+License: GPL-3.0-only
+SourceCode: https://github.com/YOURNAME/BingPalette
+IssueTracker: https://github.com/YOURNAME/BingPalette/issues
+
+AutoName: Bing Palette
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: Downloads images from the Bing service (a closed, third-party service).
+
+RepoType: git
+Repo: https://github.com/YOURNAME/BingPalette
+
+Builds:
+  - versionName: '2.1'
+    versionCode: 11
+    commit: v2.1
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersionCode: 11
+CurrentVersion: '2.1'

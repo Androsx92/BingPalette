@@ -1,0 +1,19 @@
+Bing Palette sets today's Bing image of the day as your wallpaper and then updates the Colour palette in Samsung One UI, so the system colours match the picture. It does the morning routine you would otherwise do by hand, once a day, on its own.
+
+<b>What it does</b>
+• Downloads the Bing image of the day (your choice of country) and sets it as home screen, lock screen or both.
+• Opens Settings > Wallpaper and style > Colour palette, switches the palette off, presses Apply, then switches it on and presses Apply again, exactly as you would by hand.
+• Runs once a day after your chosen time, on the first unlock, or any time with the Run button.
+• Foldable aware: choose the inner screen, the cover screen or both.
+• Optional full-screen cover with today's image while the palette is updated, so you do not see Settings being tapped. A Cancel button is always there.
+• Three speeds (Safe, Fast, Ultra fast) for slower or faster phones.
+• Material You interface with a live preview and the dominant colours of today's image.
+
+<b>Accessibility service</b>
+The colour palette has no public API, so the app uses an Android accessibility service to tap through Samsung's Settings screens. The service only acts while Settings is in front, reads no other content, collects nothing and sends nothing anywhere. The only network access is downloading the Bing image and its description.
+
+<b>Please note</b>
+• The palette step is made for Samsung One UI in English (labels "Colour palette", "Apply"). The wallpaper part works on any Android 10+ phone.
+• After installing from outside the Play Store, Android may require "Allow restricted settings" in the app info page before the accessibility service can be turned on.
+• Bing images are copyrighted by their owners. The app only sets them as your personal wallpaper and does not store or share them.
+• Not affiliated with Microsoft or Samsung.

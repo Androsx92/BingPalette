@@ -395,7 +395,7 @@ class PaletteService : AccessibilityService() {
             val pad = (24 * d).toInt()
             card.setPadding(pad, pad, pad, pad)
             card.background = GradientDrawable().apply {
-                setColor(Color.parseColor("#D9000000"))
+                setColor(Color.parseColor("#F5000000"))
                 cornerRadius = 28 * d
             }
 
