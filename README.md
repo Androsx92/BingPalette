@@ -61,4 +61,4 @@ The colour palette has no public Android API, so the app uses an **accessibility
 
 ## Licence
 
-GPL-3.0-only, see `LICENSE`. F-Droid notes are in `docs/FDROID_CHECKLIST.md`.
+GPL-3.0-only, see `LICENSE`.
