@@ -2,6 +2,10 @@
 
 Sets today's Bing image of the day as your wallpaper and then makes Samsung One UI update its **Colour palette** to match it, automatically, once a day or manually.
 
+## Screenshots
+
+<img src="screenshots/1.jpg" width="200"> <img src="screenshots/2.jpg" width="200"> <img src="screenshots/3.jpg" width="200"> <img src="screenshots/4.jpg" width="200">
+
 ## Why this exists
 
 I used to have a Google Pixel. Every morning my phone set the daily Bing wallpaper and Android's Material You picked new system colours from it, with no effort on my part.
