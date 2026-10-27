@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Material 3 with Material You dynamic colours (Android 12+), follows system dark mode -->
-    <style name="Theme.BingPalette" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
-</resources>
