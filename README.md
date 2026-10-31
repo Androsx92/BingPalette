@@ -1,20 +1,16 @@
 # Bing Palette
 
-Sets today's Bing image of the day as your wallpaper and then makes Samsung One UI update its **Colour palette** to match it, automatically, once a day or manually.
-
-## Screenshots
-
-<img src="screenshots/1.jpg" width="200"> <img src="screenshots/2.jpg" width="200"> <img src="screenshots/3.jpg" width="200"> <img src="screenshots/4.jpg" width="200">
+Sets today's Bing image of the day as your wallpaper and then makes Samsung One UI update its **Colour palette** to match it, automatically, once a day.
 
 ## Why this exists
 
-I used to have a Google Pixel. Every morning my phone set the daily Bing wallpaper and Android's Material You picked new system colours from it, with no effort on my part.
+I used to have a Google Pixel. Every morning my phone set the daily Bing wallpaper and Android's Material You picked new system colours from it, with no effort on my part. I liked that a lot.
 
-Then I switched to a Samsung Galaxy fold 8. One UI does not refresh the colour palette by itself when a wallpaper is set by another app. After every wallpaper change I had to open Settings > Wallpaper and style > Colour palette, switch it off, press Apply, switch it on and press Apply again. Every. Single. Day. I wanted the Pixel behaviour back, so I asked Claude.
+Then I switched to a Samsung foldable (Galaxy Z Fold). One UI does not refresh the colour palette by itself when a wallpaper is set by another app. After every wallpaper change I had to open Settings > Wallpaper and style > Colour palette, switch it off, press Apply, switch it on and press Apply again. Every single morning, on two screens. I wanted the Pixel behaviour back, so I built this app.
 
-## Vibe coded
+## An honest note: this is vibe coded
 
-**I cannot code.** This app was written entirely by an AI from my descriptions, screen recordings and screenshots of what went wrong on my phone. I test it on my own device and report back until it works.
+**I cannot code.** This app was written entirely by an AI (Claude, by Anthropic) from my descriptions, screen recordings and screenshots of what went wrong on my phone. I test it on my own device (Galaxy Z Fold, One UI, English) and report back until it works. I do not fully understand the code myself.
 
 What that means for you:
 - It works on my phone. I cannot promise it works on yours, on other One UI versions, or after a Samsung update changes the Settings screens.
@@ -38,7 +34,7 @@ The colour palette has no public Android API, so the app uses an **accessibility
 ## Requirements
 
 - Android 10 or newer. The wallpaper part works on any phone.
-- The palette step is made for **Samsung One UI in English** (it looks for the labels "Colour palette" and "Apply"). Other languages need the label lists at the top of `PaletteService.kt` edited.
+- The palette step is made for **Samsung One UI**. It knows the Settings labels in English, German and Italian (setting "Phone language": Auto tries all). For another language, add its labels to the `LANGS` list in `PaletteService.kt` or open an issue with a screen recording of Settings > Wallpaper and style > Colour palette.
 
 ## Build the APK (no Android Studio needed)
 
@@ -61,4 +57,4 @@ The colour palette has no public Android API, so the app uses an **accessibility
 
 ## Licence
 
-GPL-3.0-only, see `LICENSE`.
+GPL-3.0-only, see `LICENSE`. F-Droid notes are in `docs/FDROID_CHECKLIST.md`.

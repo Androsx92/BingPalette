@@ -56,10 +56,35 @@ class PaletteService : AccessibilityService() {
         @Volatile
         var instance: PaletteService? = null
 
-        private val PALETTE_ROW = listOf("Colour palette", "Color palette")
-        private val WALLPAPER_ROW = listOf("Wallpaper and style")
-        private val PALETTE_PAGE_MARKER = listOf("Apply palette to app icons")
-        private val APPLY = listOf("Apply")
+        // Labels as they appear in Samsung One UI, one set per phone language.
+        // "marker" = a text that only exists on the Colour palette page.
+        private class Labels(
+            val wallpaper: List<String>,
+            val palette: List<String>,
+            val marker: List<String>,
+            val apply: List<String>
+        )
+
+        private val LANGS = listOf(
+            Labels( // English
+                listOf("Wallpaper and style"),
+                listOf("Colour palette", "Color palette"),
+                listOf("Apply palette to app icons"),
+                listOf("Apply")
+            ),
+            Labels( // Deutsch
+                listOf("Hintergrundbild und Stil"),
+                listOf("Farbpalette"),
+                listOf("Palette auf App-Symbole anwenden"),
+                listOf("Anwenden")
+            ),
+            Labels( // Italiano
+                listOf("Sfondo e stile"),
+                listOf("Tavolozza dei colori"),
+                listOf("Applica tavolozza a icone app"),
+                listOf("Applica")
+            )
+        )
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -228,6 +253,16 @@ class PaletteService : AccessibilityService() {
     private fun applyWaitMs() = longArrayOf(3500, 2500, 1500)[speed()]
     private fun startDelayMs() = longArrayOf(3000, 2500, 1500)[speed()]
 
+    // lang setting: 0 = Auto (try every language), 1 = English, 2 = Deutsch, 3 = Italiano
+    private fun activeLangs(): List<Labels> {
+        val l = prefs().getInt("lang", 0)
+        return if (l in 1..LANGS.size) listOf(LANGS[l - 1]) else LANGS
+    }
+    private val paletteRow get() = activeLangs().flatMap { it.palette }
+    private val wallpaperRow get() = activeLangs().flatMap { it.wallpaper }
+    private val pageMarker get() = activeLangs().flatMap { it.marker }
+    private val applyLabels get() = activeLangs().flatMap { it.apply }
+
     private var round = 0
     private var applyPresses = 0
     private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
@@ -286,7 +321,7 @@ class PaletteService : AccessibilityService() {
         // On the "Colour palette" page. One UI keeps showing the colour swatches of the
         // PREVIOUS wallpaper (with Apply greyed out) until the palette switch is turned
         // off and on again, so we do exactly that, then press Apply if it lights up.
-        if (find(root, PALETTE_PAGE_MARKER) != null) {
+        if (find(root, pageMarker) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
             if (now - paletteSeenAt < pageWaitMs()) return // let the page finish loading
             // Same sequence as by hand, in two rounds:
@@ -311,7 +346,7 @@ class PaletteService : AccessibilityService() {
                     applyPresses = 0
                 }
                 1 -> if (now - phaseAt > toggleWaitMs()) {
-                    val apply = find(root, APPLY)
+                    val apply = find(root, applyLabels)
                     if (apply != null) {
                         setStatus("Pressing Apply (${round + 1}/2)…")
                         click(apply)
@@ -325,7 +360,7 @@ class PaletteService : AccessibilityService() {
                 2 -> if (now - appliedAt > applyWaitMs()) {
                     // Still on the palette page: Apply did not take, press it again (max 4 times)
                     if (applyPresses < 4) {
-                        find(root, APPLY)?.let { click(it) }
+                        find(root, applyLabels)?.let { click(it) }
                         applyPresses++
                         appliedAt = now
                     } else if (round == 0) {
@@ -351,8 +386,8 @@ class PaletteService : AccessibilityService() {
             }
         }
 
-        find(root, PALETTE_ROW)?.let { if (click(it)) return }
-        find(root, WALLPAPER_ROW)?.let { if (click(it)) return }
+        find(root, paletteRow)?.let { if (click(it)) return }
+        find(root, wallpaperRow)?.let { if (click(it)) return }
         // Label not visible yet: scroll the Settings list a few times only.
         if (inSettings && scrollTries < 10) {
             scroll(root, scrollTries < 6)
@@ -493,9 +528,10 @@ class PaletteService : AccessibilityService() {
         if (top != null) return top
         // Fallback: the "Colour palette" label that sits lowest on screen (the row, not the title).
         val rowRect = android.graphics.Rect()
-        return root.findAccessibilityNodeInfosByText(PALETTE_ROW[0])
-            ?.filter { it.text?.toString()?.trim().equals(PALETTE_ROW[0], ignoreCase = true) }
-            ?.maxByOrNull { n -> n.getBoundsInScreen(rowRect); rowRect.top }
+        return paletteRow.flatMap { label ->
+            root.findAccessibilityNodeInfosByText(label).orEmpty()
+                .filter { it.text?.toString()?.trim().equals(label, ignoreCase = true) }
+        }.maxByOrNull { n -> n.getBoundsInScreen(rowRect); rowRect.top }
     }
 
     private fun collectCheckable(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {

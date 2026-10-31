@@ -1,0 +1,1 @@
+Added language setting (English, Deutsch, Italiano, Auto) for the Samsung Settings screens.
