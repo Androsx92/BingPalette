@@ -575,6 +575,76 @@
                     android:textColor="?attr/colorOnSurfaceVariant" />
             </LinearLayout>
         </ScrollView>
+
+        <!-- ============================== INFO ============================== -->
+        <ScrollView
+            android:id="@+id/pageInfo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="20dp"
+                android:paddingBottom="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="0dp"
+                    android:text="About"
+                    android:textAppearance="?attr/textAppearanceHeadlineLarge"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Bing Palette sets today\'s Bing image of the day as your wallpaper, then makes Samsung One UI update its Colour palette to match it, once a day or whenever you tap Run."
+                    android:textAppearance="?attr/textAppearanceBodyLarge"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="How it works"
+                    android:textAppearance="?attr/textAppearanceTitleLarge"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="The wallpaper is set with Android\'s normal wallpaper API. One UI has no public way to refresh the palette, so the app uses an accessibility service that opens Settings > Wallpaper and style > Colour palette, switches the palette off, presses Apply, then switches it on and presses Apply again. The service only acts while Settings is in front, reads nothing else and sends nothing anywhere. The only network access is downloading the Bing image and its description."
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurface" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/githubButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="24dp"
+                    android:text="Source code on GitHub"
+                    app:cornerRadius="28dp" />
+
+                <TextView
+                    android:id="@+id/infoVersion"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+        </ScrollView>
     </FrameLayout>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView

@@ -11,8 +11,27 @@ android {
         applicationId = "app.bingpalette"
         minSdk = 29
         targetSdk = 34
-        versionCode = 13
-        versionName = "2.3"
+        versionCode = 14
+        versionName = "2.3.1"
+    }
+
+    // Fixed signing key (from GitHub secrets) so that updates install over older versions.
+    // Without the secrets the build falls back to the normal random debug key.
+    val ksFile = System.getenv("KEYSTORE_FILE")
+    if (ksFile != null) {
+        signingConfigs {
+            create("fixed") {
+                storeFile = file(ksFile)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "bingpalette"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
+        }
+        buildTypes {
+            getByName("debug") {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
+        }
     }
 
     compileOptions {

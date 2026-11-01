@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
@@ -90,19 +91,28 @@ class MainActivity : AppCompatActivity() {
         // Bottom navigation: Home / Settings
         val home = findViewById<View>(R.id.pageHome)
         val settings = findViewById<View>(R.id.pageSettings)
+        val infoPage = findViewById<View>(R.id.pageInfo)
         val nav = findViewById<BottomNavigationView>(R.id.bottomNav)
         nav.setOnItemSelectedListener { item ->
-            val isHome = item.itemId == R.id.nav_home
-            home.visibility = if (isHome) View.VISIBLE else View.GONE
-            settings.visibility = if (isHome) View.GONE else View.VISIBLE
+            home.visibility = if (item.itemId == R.id.nav_home) View.VISIBLE else View.GONE
+            settings.visibility = if (item.itemId == R.id.nav_settings) View.VISIBLE else View.GONE
+            infoPage.visibility = if (item.itemId == R.id.nav_info) View.VISIBLE else View.GONE
             true
+        }
+        findViewById<MaterialButton>(R.id.githubButton).setOnClickListener {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Androsx92/BingPalette")))
+            } catch (e: Exception) {
+                Toast.makeText(this, "No browser found", Toast.LENGTH_SHORT).show()
+            }
         }
 
         bindSettings()
 
         val info = packageManager.getPackageInfo(packageName, 0)
-        findViewById<TextView>(R.id.versionText).text =
-            "Bing Palette v${info.versionName} (build ${info.longVersionCode})"
+        val versionLabel = "Bing Palette v${info.versionName} (build ${info.longVersionCode})"
+        findViewById<TextView>(R.id.versionText).text = versionLabel
+        findViewById<TextView>(R.id.infoVersion).text = versionLabel
     }
 
     override fun onResume() {
