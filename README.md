@@ -12,9 +12,9 @@ I used to have a Google Pixel. Every morning my phone set the daily Bing wallpap
 
 Then I switched to a Samsung foldable (Galaxy Z Fold). One UI does not refresh the colour palette by itself when a wallpaper is set by another app. After every wallpaper change I had to open Settings > Wallpaper and style > Colour palette, switch it off, press Apply, switch it on and press Apply again. Every single morning, on two screens. I wanted the Pixel behaviour back, so I built this app.
 
-## An honest note: this is vibe coded
+## vibe code and AI
 
-**I cannot code.** This app was written entirely by an AI (Claude, by Anthropic) from my descriptions, screen recordings and screenshots of what went wrong on my phone. I test it on my own device (Galaxy Z Fold, One UI, English) and report back until it works. I do not fully understand the code myself.
+ This app was written entirely by an AI Claude, from my descriptions, screen recordings and screenshots of what went wrong on my phone. I test it on my own device (Galaxy Z Fold, One UI, English) and report back until it works. I do not fully understand the code myself.
 
 What that means for you:
 - It works on my phone. I cannot promise it works on yours, on other One UI versions, or after a Samsung update changes the Settings screens.
