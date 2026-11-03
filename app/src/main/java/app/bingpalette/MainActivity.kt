@@ -1,16 +1,24 @@
 package app.bingpalette
 
+import android.app.Dialog
+import android.content.ContentValues
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Filter
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -23,10 +31,13 @@ import androidx.palette.graphics.Palette
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -42,6 +53,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dotMain: View
     private lateinit var dotMainLabel: TextView
     private lateinit var dotRow: LinearLayout
+    private lateinit var marketDrop: MaterialAutoCompleteTextView
+    private var currentInfo: Bing.Info? = null
+    private var currentBmp: Bitmap? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +89,20 @@ class MainActivity : AppCompatActivity() {
         dotMain = findViewById(R.id.dotMain)
         dotMainLabel = findViewById(R.id.dotMainLabel)
         dotRow = findViewById(R.id.dotRow)
+
+        // Tap targets on the preview card
+        previewImage.setOnClickListener { showImageDialog() }
+        previewSub.setOnClickListener { showMarketPicker() }
+        val openPalette = View.OnClickListener {
+            val svc = PaletteService.instance
+            if (svc == null) {
+                Toast.makeText(this, "Enable the accessibility service first", Toast.LENGTH_LONG).show()
+            } else {
+                svc.openPalettePage()
+            }
+        }
+        dotMain.setOnClickListener(openPalette)
+        dotMainLabel.setOnClickListener(openPalette)
 
         enableButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -137,14 +165,16 @@ class MainActivity : AppCompatActivity() {
                 val info = Bing.info(mkt)
                 val bytes = Bing.image(info, "1366x768")
                 val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                val pal = Palette.from(bmp).maximumColorCount(16).generate()
-                val main = pal.getDominantColor(0)
+                val pal = Palette.from(bmp).maximumColorCount(24).generate()
+                val main = pickMain(pal)
                 val others = listOfNotNull(
                     pal.vibrantSwatch?.rgb, pal.mutedSwatch?.rgb, pal.darkVibrantSwatch?.rgb,
                     pal.lightVibrantSwatch?.rgb, pal.darkMutedSwatch?.rgb
                 ).take(4)
                 runOnUiThread {
                     if (!isDestroyed) {
+                        currentInfo = info
+                        currentBmp = bmp
                         previewImage.setImageBitmap(bmp)
                         previewTitle.text = info.title.ifEmpty { "Today's image" }
                         previewSub.text = Markets.label(mkt) + "\n" + info.copyright
@@ -155,6 +185,103 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread { if (!isDestroyed) previewTitle.text = "Preview unavailable (offline?)" }
             }
         }.start()
+    }
+
+    /** Most common colour, but favouring colourful ones over pale or near-black areas. */
+    private fun pickMain(pal: Palette): Int {
+        var best = pal.getDominantColor(0)
+        var bestScore = -1f
+        for (sw in pal.swatches) {
+            val hsl = sw.hsl
+            val sat = hsl[1]
+            val light = hsl[2]
+            val penalty = if (light > 0.85f || light < 0.12f) 0.3f else 1f
+            val score = sw.population * (0.2f + sat) * penalty
+            if (score > bestScore) {
+                bestScore = score
+                best = sw.rgb
+            }
+        }
+        return best
+    }
+
+    private fun showImageDialog() {
+        val bmp = currentBmp
+        if (bmp == null) {
+            Toast.makeText(this, "Image not loaded yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val d = resources.displayMetrics.density
+        val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val frame = FrameLayout(this)
+        frame.setBackgroundColor(Color.BLACK)
+        val img = ImageView(this)
+        img.scaleType = ImageView.ScaleType.FIT_CENTER
+        img.setImageBitmap(bmp)
+        img.setOnClickListener { dialog.dismiss() }
+        frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER
+        val download = MaterialButton(this)
+        download.text = "Download"
+        download.setOnClickListener { downloadImage() }
+        val close = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
+        close.text = "Close"
+        close.setOnClickListener { dialog.dismiss() }
+        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp.marginEnd = (12 * d).toInt()
+        row.addView(download, lp)
+        row.addView(close)
+        val rlp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+        rlp.bottomMargin = (32 * d).toInt()
+        frame.addView(row, rlp)
+
+        dialog.setContentView(frame)
+        dialog.show()
+    }
+
+    private fun downloadImage() {
+        val info = currentInfo ?: return
+        Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show()
+        Thread {
+            try {
+                val bytes = try {
+                    Bing.image(info, "UHD")
+                } catch (e: Exception) {
+                    Bing.image(info, "1920x1080")
+                }
+                val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+                val name = "BingPalette_" + day + "_" + info.title.replace(Regex("[^A-Za-z0-9]+"), "_").trim('_').take(40) + ".jpg"
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/BingPalette")
+                }
+                val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw RuntimeException("Could not create file")
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                runOnUiThread { Toast.makeText(this, "Saved to Pictures/BingPalette", Toast.LENGTH_LONG).show() }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, "Download failed: ${e.message}", Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    private fun showMarketPicker() {
+        val labels = Markets.codes.map { Markets.label(it) }.toTypedArray()
+        val current = Markets.codes.indexOf(prefs.getString("mkt", "de-DE") ?: "de-DE")
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Image country / language")
+            .setSingleChoiceItems(labels, current) { dlg, which ->
+                prefs.edit().putString("mkt", Markets.codes[which]).apply()
+                marketDrop.setText(labels[which], false)
+                loadPreview()
+                dlg.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun oval(color: Int): GradientDrawable = GradientDrawable().apply {
@@ -202,6 +329,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val drop = findViewById<MaterialAutoCompleteTextView>(R.id.marketDrop)
+        marketDrop = drop
         // Adapter that never filters: otherwise the list shrinks to the currently selected country.
         val labels = Markets.codes.map { Markets.label(it) }
         drop.setAdapter(object : ArrayAdapter<String>(

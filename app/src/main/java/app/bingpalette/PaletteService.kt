@@ -274,7 +274,17 @@ class PaletteService : AccessibilityService() {
         startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
-    private fun beginPalette() {
+    private var navigateOnly = false
+
+    /** Opens Settings > Wallpaper and style > Colour palette and stops there, changing nothing. */
+    fun openPalettePage() {
+        if (running) return
+        running = true
+        beginPalette(navigateOnly = true)
+    }
+
+    private fun beginPalette(navigateOnly: Boolean = false) {
+        this.navigateOnly = navigateOnly
         startedAt = SystemClock.uptimeMillis()
         paletteSeenAt = 0L
         applied = false
@@ -284,8 +294,12 @@ class PaletteService : AccessibilityService() {
         phaseAt = 0L
         launches = 0
         scrollTries = 0
-        toast("Updating colour palette - please don't touch the screen")
-        showCover()
+        if (navigateOnly) {
+            toast("Opening colour palette settings…")
+        } else {
+            toast("Updating colour palette - please don't touch the screen")
+            showCover()
+        }
         launchSettings()
         main.postDelayed(tick, startDelayMs())
     }
@@ -324,6 +338,12 @@ class PaletteService : AccessibilityService() {
         if (find(root, pageMarker) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
             if (now - paletteSeenAt < pageWaitMs()) return // let the page finish loading
+            if (navigateOnly) { // we only wanted to get here: stop and leave the page open for the user
+                navigateOnly = false
+                running = false
+                main.removeCallbacks(tick)
+                return
+            }
             // Same sequence as by hand, in two rounds:
             //   round 0: switch OFF -> Apply        (page closes)
             //   round 1: open again, switch ON -> Apply
@@ -502,6 +522,7 @@ class PaletteService : AccessibilityService() {
 
     private fun finish(message: String) {
         running = false
+        navigateOnly = false
         hideCover()
         main.removeCallbacks(tick)
         performGlobalAction(GLOBAL_ACTION_HOME)

@@ -11,8 +11,8 @@ android {
         applicationId = "app.bingpalette"
         minSdk = 29
         targetSdk = 34
-        versionCode = 14
-        versionName = "2.3.1"
+        versionCode = 15
+        versionName = "2.3.2"
     }
 
     // Fixed signing key (from GitHub secrets) so that updates install over older versions.
