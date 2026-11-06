@@ -2,6 +2,10 @@ package app.bingpalette
 
 import android.accessibilityservice.AccessibilityService
 import android.app.KeyguardManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.PackageManager
 import android.app.WallpaperManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -208,11 +212,11 @@ class PaletteService : AccessibilityService() {
                         beginPalette()
                     } else {
                         running = false
-                        toast("Wallpaper set")
+                        report("Wallpaper set", true)
                     }
                 } else {
                     running = false
-                    toast("Bing wallpaper failed: $error")
+                    report("Bing wallpaper failed: $error", false)
                 }
             }
         }.start()
@@ -526,7 +530,37 @@ class PaletteService : AccessibilityService() {
         hideCover()
         main.removeCallbacks(tick)
         performGlobalAction(GLOBAL_ACTION_HOME)
+        val ok = message.startsWith("Palette refreshed")
+        if (message == "Cancelled") toast(message) else report(message, ok)
+    }
+
+    /** Toast + (optional) notification with the result of a run. */
+    private fun report(message: String, ok: Boolean) {
         toast(message)
+        try {
+            if (!prefs().getBoolean("notify", true)) return
+            if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) return
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(
+                NotificationChannel("result", "Run result", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+            val open = android.app.PendingIntent.getActivity(
+                this, 0, Intent(this, MainActivity::class.java),
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val n = Notification.Builder(this, "result")
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle(if (ok) "Bing Palette" else "Bing Palette - problem")
+                .setContentText(message)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(1, n)
+        } catch (e: Exception) {
+            Log.e(TAG, "notify failed", e)
+        }
     }
 
     // ---------------------------------------------------------------- helpers

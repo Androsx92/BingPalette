@@ -387,6 +387,14 @@
                             android:text="Cover screen with today's image while updating"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/notifySwitch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Show a notification with the result"
+                            android:textAppearance="?attr/textAppearanceBodyLarge" />
+
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"

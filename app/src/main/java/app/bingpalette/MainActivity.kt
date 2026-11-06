@@ -364,6 +364,14 @@ class MainActivity : AppCompatActivity() {
         val coverSwitch = findViewById<MaterialSwitch>(R.id.coverSwitch)
         coverSwitch.isChecked = prefs.getBoolean("cover", true)
         coverSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("cover", on).apply() }
+
+        val notifySwitch = findViewById<MaterialSwitch>(R.id.notifySwitch)
+        notifySwitch.isChecked = prefs.getBoolean("notify", true)
+        notifySwitch.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("notify", on).apply()
+            if (on) askNotificationPermission()
+        }
+        if (notifySwitch.isChecked) askNotificationPermission()
     }
 
     private fun updateTimeText() {
@@ -376,6 +384,15 @@ class MainActivity : AppCompatActivity() {
         group.setOnCheckedStateChangeListener { _, checked ->
             val i = ids.indexOf(checked.firstOrNull())
             if (i >= 0) prefs.edit().putInt(key, i).apply()
+        }
+    }
+
+    private fun askNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
         }
     }
 }
