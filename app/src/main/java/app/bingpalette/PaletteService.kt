@@ -146,7 +146,7 @@ class PaletteService : AccessibilityService() {
         override fun onDisplayRemoved(displayId: Int) {}
         override fun onDisplayChanged(displayId: Int) {
             main.removeCallbacks(foldCheck)
-            main.postDelayed(foldCheck, 3000)
+            main.postDelayed(foldCheck, 1500)
         }
     }
 
@@ -249,13 +249,13 @@ class PaletteService : AccessibilityService() {
     private var launches = 0
     private var lastLaunchAt = 0L
     private var scrollTries = 0
-    // speed: 0 = Safe, 1 = Fast, 2 = Ultra fast  (all values in milliseconds)
-    private fun speed() = prefs().getInt("speed", 1).coerceIn(0, 2)
-    private fun tickMs() = longArrayOf(800, 500, 250)[speed()]
-    private fun pageWaitMs() = longArrayOf(1500, 1000, 400)[speed()]
-    private fun toggleWaitMs() = longArrayOf(3500, 2000, 1000)[speed()]
-    private fun applyWaitMs() = longArrayOf(3500, 2500, 1500)[speed()]
-    private fun startDelayMs() = longArrayOf(3000, 2500, 1500)[speed()]
+    // speed: 0 = Slow, 1 = Normal, 2 = Fast, 3 = Faster, 4 = Ultra fast  (all values in milliseconds)
+    private fun speed() = prefs().getInt("speed", 1).coerceIn(0, 4)
+    private fun tickMs() = longArrayOf(800, 500, 250, 180, 120)[speed()]
+    private fun pageWaitMs() = longArrayOf(1500, 1000, 400, 300, 200)[speed()]
+    private fun toggleWaitMs() = longArrayOf(3500, 2000, 1000, 700, 450)[speed()]
+    private fun applyWaitMs() = longArrayOf(3500, 2500, 1500, 1000, 700)[speed()]
+    private fun startDelayMs() = longArrayOf(3000, 2500, 1500, 1000, 700)[speed()]
 
     // lang setting: 0 = Auto (try every language), 1 = English, 2 = Deutsch, 3 = Italiano
     private fun activeLangs(): List<Labels> {

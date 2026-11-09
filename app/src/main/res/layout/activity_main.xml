@@ -415,17 +415,31 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Safe" />
+                                android:text="Slow" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedFast"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Fast" />
+                                android:text="Normal" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedUltra"
+                                style="@style/Widget.Material3.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Fast" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipSpeedFaster"
+                                style="@style/Widget.Material3.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Faster" />
+
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/chipSpeedMax"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
