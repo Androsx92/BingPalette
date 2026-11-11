@@ -6,12 +6,22 @@ import java.net.URL
 import java.util.Locale
 
 object Bing {
-    class Info(val urlBase: String, val title: String, val copyright: String)
+    class Info(val urlBase: String, val title: String, val copyright: String, val date: String = "")
 
     fun info(mkt: String): Info {
         val json = JSONObject(String(get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=$mkt")))
         val img = json.getJSONArray("images").getJSONObject(0)
         return Info(img.getString("urlbase"), img.optString("title"), img.optString("copyright"))
+    }
+
+    /** The last [n] images (newest first, max 8), Bing keeps about a week. */
+    fun list(mkt: String, n: Int = 7): List<Info> {
+        val json = JSONObject(String(get("https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=$n&mkt=$mkt")))
+        val arr = json.getJSONArray("images")
+        return (0 until arr.length()).map { i ->
+            val img = arr.getJSONObject(i)
+            Info(img.getString("urlbase"), img.optString("title"), img.optString("copyright"), img.optString("startdate"))
+        }
     }
 
     /** size: UHD, 1920x1080, 1366x768, 800x480 ... */

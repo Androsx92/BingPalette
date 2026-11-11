@@ -104,6 +104,10 @@ class MainActivity : AppCompatActivity() {
         dotMain.setOnClickListener(openPalette)
         dotMainLabel.setOnClickListener(openPalette)
 
+        findViewById<MaterialButton>(R.id.clearLogButton).setOnClickListener {
+            prefs.edit().remove("log").apply()
+            refreshLog()
+        }
         enableButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
@@ -154,12 +158,22 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "Turn on Bing Palette in Accessibility"
             enableButton.text = "Enable"
         }
+        refreshLog()
         loadPreview()
+    }
+
+    private fun refreshLog() {
+        val lines = (prefs.getString("log", "") ?: "").split("\n").filter { it.isNotBlank() }
+        findViewById<TextView>(R.id.logText).text = if (lines.isEmpty()) "No runs yet." else lines.joinToString("\n") { l ->
+            val f = l.split("|", limit = 4)
+            if (f.size < 4) l else "${if (f[2] == "1") "✓" else "✗"} ${f[0]} · ${f[1]} · ${f[3]}"
+        }
     }
 
     private fun loadPreview() {
         val mkt = prefs.getString("mkt", "de-DE") ?: "de-DE"
         previewSub.text = Markets.label(mkt)
+        loadHistory(mkt)
         Thread {
             try {
                 val info = Bing.info(mkt)
@@ -187,6 +201,76 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+
+    /** "Last 7 days": thumbnails of the past week's Bing images; tap one to view / download it. */
+    private fun loadHistory(mkt: String) {
+        val row = findViewById<LinearLayout>(R.id.historyRow)
+        Thread {
+            try {
+                val items = Bing.list(mkt, 7)
+                val thumbs = items.map { info ->
+                    try {
+                        val b = Bing.image(info, "320x240")
+                        BitmapFactory.decodeByteArray(b, 0, b.size)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                runOnUiThread {
+                    if (isDestroyed) return@runOnUiThread
+                    row.removeAllViews()
+                    val d = resources.displayMetrics.density
+                    items.forEachIndexed { i, info ->
+                        val bmp = thumbs[i] ?: return@forEachIndexed
+                        val col = LinearLayout(this)
+                        col.orientation = LinearLayout.VERTICAL
+                        val iv = ImageView(this)
+                        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+                        iv.setImageBitmap(bmp)
+                        iv.clipToOutline = true
+                        iv.background = GradientDrawable().apply { cornerRadius = 16 * d; setColor(Color.DKGRAY) }
+                        iv.setOnClickListener { openHistoryImage(info) }
+                        col.addView(iv, LinearLayout.LayoutParams((150 * d).toInt(), (100 * d).toInt()))
+                        val label = TextView(this)
+                        label.text = historyLabel(info.date, i)
+                        label.textSize = 12f
+                        label.setTextColor(previewSub.currentTextColor)
+                        label.setPadding(0, (4 * d).toInt(), 0, 0)
+                        col.addView(label)
+                        val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                        lp.marginEnd = (12 * d).toInt()
+                        row.addView(col, lp)
+                    }
+                }
+            } catch (e: Exception) {
+                // offline: leave the row as it is
+            }
+        }.start()
+    }
+
+    private fun historyLabel(date: String, index: Int): String {
+        if (index == 0) return "Today"
+        return try {
+            val d = SimpleDateFormat("yyyyMMdd", Locale.US).parse(date)!!
+            SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(d)
+        } catch (e: Exception) {
+            date
+        }
+    }
+
+    private fun openHistoryImage(info: Bing.Info) {
+        Toast.makeText(this, "Loading…", Toast.LENGTH_SHORT).show()
+        Thread {
+            try {
+                val b = Bing.image(info, "1366x768")
+                val bmp = BitmapFactory.decodeByteArray(b, 0, b.size)
+                runOnUiThread { if (!isDestroyed) showImageDialog(bmp, info) }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, "Couldn't load image", Toast.LENGTH_SHORT).show() }
+            }
+        }.start()
+    }
+
     /** Most common colour, but favouring colourful ones over pale or near-black areas. */
     private fun pickMain(pal: Palette): Int {
         var best = pal.getDominantColor(0)
@@ -205,8 +289,7 @@ class MainActivity : AppCompatActivity() {
         return best
     }
 
-    private fun showImageDialog() {
-        val bmp = currentBmp
+    private fun showImageDialog(bmp: Bitmap? = currentBmp, info: Bing.Info? = currentInfo) {
         if (bmp == null) {
             Toast.makeText(this, "Image not loaded yet", Toast.LENGTH_SHORT).show()
             return
@@ -226,7 +309,7 @@ class MainActivity : AppCompatActivity() {
         row.gravity = Gravity.CENTER
         val download = MaterialButton(this)
         download.text = "Download"
-        download.setOnClickListener { downloadImage() }
+        download.setOnClickListener { downloadImage(info) }
         val close = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
         close.text = "Close"
         close.setOnClickListener { dialog.dismiss() }
@@ -242,8 +325,8 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun downloadImage() {
-        val info = currentInfo ?: return
+    private fun downloadImage(info: Bing.Info? = currentInfo) {
+        if (info == null) return
         Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show()
         Thread {
             try {
@@ -252,7 +335,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     Bing.image(info, "1920x1080")
                 }
-                val day = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+                val day = info.date.ifEmpty { SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) }
                 val name = "BingPalette_" + day + "_" + info.title.replace(Regex("[^A-Za-z0-9]+"), "_").trim('_').take(40) + ".jpg"
                 val values = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, name)

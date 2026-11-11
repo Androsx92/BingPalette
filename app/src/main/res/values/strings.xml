@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Bing Palette</string>
     <string name="service_description">Used only to open Settings > Wallpaper and style > Colour palette and tap Apply after the daily Bing wallpaper has been set. It reads nothing else.</string>
+    <string name="shortcut_run">Run now</string>
+    <string name="shortcut_run_long">Run now (wallpaper + palette)</string>
 </resources>

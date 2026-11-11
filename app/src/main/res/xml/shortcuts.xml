@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="run_now"
+        android:enabled="true"
+        android:icon="@drawable/ic_run"
+        android:shortcutShortLabel="@string/shortcut_run"
+        android:shortcutLongLabel="@string/shortcut_run_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="app.bingpalette.RunNowActivity"
+            android:targetPackage="app.bingpalette" />
+    </shortcut>
+</shortcuts>

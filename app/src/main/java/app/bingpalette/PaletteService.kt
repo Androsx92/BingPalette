@@ -181,9 +181,10 @@ class PaletteService : AccessibilityService() {
      * @param manual true when started with the buttons in the app, false for the automatic daily run
      * @param wallpaperOnly true = never touch the colour palette on this run
      */
-    fun runNow(manual: Boolean = true, wallpaperOnly: Boolean = false) {
+    fun runNow(manual: Boolean = true, wallpaperOnly: Boolean = false, retry: Boolean = false) {
         if (running) return
         running = true
+        if (!retry) paletteRetried = false
         lastAttemptAt = SystemClock.elapsedRealtime()
         runState = screenState()
         toast("Bing wallpaper: starting (${if (runState == "inner") "inner screen" else "cover screen"})")
@@ -214,6 +215,11 @@ class PaletteService : AccessibilityService() {
                         running = false
                         report("Wallpaper set", true)
                     }
+                } else if (!retry) {
+                    // one automatic retry (e.g. network not ready right after unlocking)
+                    logRun("Bing wallpaper failed: $error - retrying", false)
+                    toast("Wallpaper failed - retrying in 5 s")
+                    main.postDelayed({ running = false; runNow(manual, wallpaperOnly, retry = true) }, 5000)
                 } else {
                     running = false
                     report("Bing wallpaper failed: $error", false)
@@ -246,13 +252,14 @@ class PaletteService : AccessibilityService() {
 
     // ---------------------------------------------------------------- step 2: palette
 
+    private var paletteRetried = false
     private var launches = 0
     private var lastLaunchAt = 0L
     private var scrollTries = 0
     // speed: 0 = Slow, 1 = Normal, 2 = Fast, 3 = Faster, 4 = Ultra fast  (all values in milliseconds)
     private fun speed() = prefs().getInt("speed", 1).coerceIn(0, 4)
     private fun tickMs() = longArrayOf(800, 500, 250, 180, 120)[speed()]
-    private fun pageWaitMs() = longArrayOf(1500, 1000, 400, 300, 200)[speed()]
+    private fun pageWaitMs() = longArrayOf(1500, 1000, 400, 350, 300)[speed()]
     private fun toggleWaitMs() = longArrayOf(3500, 2000, 1000, 700, 450)[speed()]
     private fun applyWaitMs() = longArrayOf(3500, 2500, 1500, 1000, 700)[speed()]
     private fun startDelayMs() = longArrayOf(3000, 2500, 1500, 1000, 700)[speed()]
@@ -356,6 +363,8 @@ class PaletteService : AccessibilityService() {
             // is pressed after a fixed wait.
             val t = findToggle(root)
             if (t == null) {
+                // The page can show up before its switch is loaded: keep looking for a few seconds
+                if (now - paletteSeenAt < pageWaitMs() + 3000) return
                 finish("Couldn't find the Colour palette switch")
                 return
             }
@@ -525,6 +534,18 @@ class PaletteService : AccessibilityService() {
     }
 
     private fun finish(message: String) {
+        val failed = message.startsWith("Couldn't") || message.startsWith("Palette step timed out")
+        if (failed && !paletteRetried && !navigateOnly) {
+            // one automatic retry of the palette step (wallpaper is already set)
+            paletteRetried = true
+            logRun("$message - retrying", false)
+            main.removeCallbacks(tick)
+            hideCover()
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            toast("Palette step failed - retrying")
+            main.postDelayed({ beginPalette() }, 2000)
+            return
+        }
         running = false
         navigateOnly = false
         hideCover()
@@ -534,9 +555,23 @@ class PaletteService : AccessibilityService() {
         if (message == "Cancelled") toast(message) else report(message, ok)
     }
 
+    /** Keeps the last 10 runs ("time|screen|ok|message", newest first) for the Run log in Settings. */
+    private fun logRun(message: String, ok: Boolean) {
+        try {
+            val p = prefs()
+            val time = SimpleDateFormat("dd.MM. HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
+            val line = "$time|${if (runState == "inner") "Inner" else "Cover"}|${if (ok) 1 else 0}|${message.replace("|", "/").replace("\n", " ")}"
+            val old = (p.getString("log", "") ?: "").split("\n").filter { it.isNotBlank() }
+            p.edit().putString("log", (listOf(line) + old).take(10).joinToString("\n")).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "log failed", e)
+        }
+    }
+
     /** Toast + (optional) notification with the result of a run. */
     private fun report(message: String, ok: Boolean) {
         toast(message)
+        logRun(message, ok)
         try {
             if (!prefs().getBoolean("notify", true)) return
             if (Build.VERSION.SDK_INT >= 33 &&
