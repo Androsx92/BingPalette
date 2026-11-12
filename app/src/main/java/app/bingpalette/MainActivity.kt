@@ -298,10 +298,9 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
         val frame = FrameLayout(this)
         frame.setBackgroundColor(Color.BLACK)
-        val img = ImageView(this)
-        img.scaleType = ImageView.ScaleType.FIT_CENTER
+        val img = ZoomImageView(this)
         img.setImageBitmap(bmp)
-        img.setOnClickListener { dialog.dismiss() }
+        img.onTap = { dialog.dismiss() }
         frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         val row = LinearLayout(this)
@@ -318,11 +317,28 @@ class MainActivity : AppCompatActivity() {
         row.addView(download, lp)
         row.addView(close)
         val rlp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-        rlp.bottomMargin = (32 * d).toInt()
+        rlp.bottomMargin = (48 * d).toInt()
         frame.addView(row, rlp)
 
         dialog.setContentView(frame)
+        // Really full screen: draw behind the status / navigation bars and the camera cut-out
+        dialog.window?.let { w ->
+            WindowCompat.setDecorFitsSystemWindows(w, false)
+            w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.BLACK))
+            w.addFlags(android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+            val lp = w.attributes
+            lp.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            w.attributes = lp
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            w.statusBarColor = Color.BLACK
+            w.navigationBarColor = Color.BLACK
+        }
         dialog.show()
+        dialog.window?.let { w ->
+            val c = WindowCompat.getInsetsController(w, frame)
+            c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     private fun downloadImage(info: Bing.Info? = currentInfo) {
