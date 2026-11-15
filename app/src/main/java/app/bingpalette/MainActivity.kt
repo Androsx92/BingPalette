@@ -108,6 +108,9 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().remove("log").apply()
             refreshLog()
         }
+        findViewById<MaterialButton>(R.id.setupButton).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
         enableButton.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
@@ -158,6 +161,8 @@ class MainActivity : AppCompatActivity() {
             statusText.text = "Turn on Bing Palette in Accessibility"
             enableButton.text = "Enable"
         }
+        findViewById<View>(R.id.setupCard).visibility =
+            if (PaletteService.instance == null) View.VISIBLE else View.GONE
         refreshLog()
         loadPreview()
     }
@@ -302,6 +307,27 @@ class MainActivity : AppCompatActivity() {
         img.setImageBitmap(bmp)
         img.onTap = { dialog.dismiss() }
         frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        // Caption: title + description of the image (hidden while zoomed in)
+        val captionText = listOfNotNull(info?.title, info?.copyright).filter { it.isNotBlank() }.joinToString("\n")
+        if (captionText.isNotEmpty()) {
+            val caption = TextView(this)
+            caption.text = captionText
+            caption.setTextColor(Color.WHITE)
+            caption.textSize = 14f
+            val cp = (12 * d).toInt()
+            caption.setPadding(cp, cp, cp, cp)
+            caption.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#99000000"))
+                cornerRadius = 16 * d
+            }
+            val clp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM)
+            clp.leftMargin = (16 * d).toInt()
+            clp.rightMargin = (16 * d).toInt()
+            clp.bottomMargin = (124 * d).toInt()
+            frame.addView(caption, clp)
+            img.onZoomChanged = { zoomed -> caption.visibility = if (zoomed) View.GONE else View.VISIBLE }
+        }
 
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL

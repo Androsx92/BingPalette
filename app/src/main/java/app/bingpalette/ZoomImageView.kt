@@ -13,6 +13,16 @@ import android.widget.ImageView
 class ZoomImageView(context: Context) : ImageView(context) {
 
     var onTap: (() -> Unit)? = null
+    var onZoomChanged: ((Boolean) -> Unit)? = null
+    private var lastZoomed = false
+
+    private fun notifyZoom() {
+        val z = zoomed()
+        if (z != lastZoomed) {
+            lastZoomed = z
+            onZoomChanged?.invoke(z)
+        }
+    }
 
     private val m = Matrix()
     private var bmpW = 0f
@@ -52,6 +62,7 @@ class ZoomImageView(context: Context) : ImageView(context) {
         m.postScale(minScale, minScale)
         m.postTranslate((width - bmpW * minScale) / 2f, (height - bmpH * minScale) / 2f)
         imageMatrix = m
+        notifyZoom()
     }
 
     /** Keep the image from being dragged out of view. */
@@ -68,6 +79,7 @@ class ZoomImageView(context: Context) : ImageView(context) {
         else if (r.bottom < height) dy = height - r.bottom
         m.postTranslate(dx, dy)
         imageMatrix = m
+        notifyZoom()
     }
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
