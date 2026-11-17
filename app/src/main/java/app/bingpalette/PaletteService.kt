@@ -183,11 +183,17 @@ class PaletteService : AccessibilityService() {
      */
     fun runNow(manual: Boolean = true, wallpaperOnly: Boolean = false, retry: Boolean = false) {
         if (running) return
+        if (!manual && !retry && prefs().getBoolean("wifi_only", false) && !onUnmeteredNetwork()) {
+            lastAttemptAt = SystemClock.elapsedRealtime()
+            runState = screenState()
+            logRun(getString(R.string.wifi_skipped), false)
+            return
+        }
         running = true
         if (!retry) paletteRetried = false
         lastAttemptAt = SystemClock.elapsedRealtime()
         runState = screenState()
-        toast("Bing wallpaper: starting (${if (runState == "inner") "inner screen" else "cover screen"})")
+        toast(getString(if (runState == "inner") R.string.start_inner else R.string.start_cover))
         Thread {
             var error: String? = null
             try {
@@ -213,19 +219,26 @@ class PaletteService : AccessibilityService() {
                         beginPalette()
                     } else {
                         running = false
-                        report("Wallpaper set", true)
+                        report(getString(R.string.wp_set), true)
                     }
                 } else if (!retry) {
                     // one automatic retry (e.g. network not ready right after unlocking)
-                    logRun("Bing wallpaper failed: $error - retrying", false)
-                    toast("Wallpaper failed - retrying in 5 s")
+                    logRun(getString(R.string.wp_failed_retry, error ?: ""), false)
+                    toast(getString(R.string.wp_retry_toast))
                     main.postDelayed({ running = false; runNow(manual, wallpaperOnly, retry = true) }, 5000)
                 } else {
                     running = false
-                    report("Bing wallpaper failed: $error", false)
+                    report(getString(R.string.wp_failed, error ?: ""), false)
                 }
             }
         }.start()
+    }
+
+    /** True on Wi-Fi (or any other unmetered connection). */
+    private fun onUnmeteredNetwork(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
     }
 
     private fun fetchAndSetWallpaper() {
@@ -306,9 +319,9 @@ class PaletteService : AccessibilityService() {
         launches = 0
         scrollTries = 0
         if (navigateOnly) {
-            toast("Opening colour palette settings…")
+            toast(getString(R.string.opening_palette))
         } else {
-            toast("Updating colour palette - please don't touch the screen")
+            toast(getString(R.string.updating_palette))
             showCover()
         }
         launchSettings()
@@ -329,7 +342,7 @@ class PaletteService : AccessibilityService() {
     private fun step() {
         val now = SystemClock.uptimeMillis()
         if (now - startedAt > 45000) {
-            finish("Palette step timed out - the wallpaper itself is set")
+            finish(R.string.err_timeout)
             return
         }
         val root = rootInActiveWindow ?: return
@@ -365,13 +378,13 @@ class PaletteService : AccessibilityService() {
             if (t == null) {
                 // The page can show up before its switch is loaded: keep looking for a few seconds
                 if (now - paletteSeenAt < pageWaitMs() + 3000) return
-                finish("Couldn't find the Colour palette switch")
+                finish(R.string.err_switch)
                 return
             }
             val wantOn = round == 1
             when (palettePhase) {
                 0 -> {
-                    setStatus(if (wantOn) "Switching colour palette on…" else "Switching colour palette off…")
+                    setStatus(getString(if (wantOn) R.string.st_on else R.string.st_off))
                     val isOn = if (t.isCheckable) t.isChecked else !wantOn
                     if (isOn != wantOn) click(t)
                     palettePhase = 1
@@ -381,13 +394,13 @@ class PaletteService : AccessibilityService() {
                 1 -> if (now - phaseAt > toggleWaitMs()) {
                     val apply = find(root, applyLabels)
                     if (apply != null) {
-                        setStatus("Pressing Apply (${round + 1}/2)…")
+                        setStatus(getString(R.string.st_apply, round + 1))
                         click(apply)
                         applyPresses++
                         palettePhase = 2
                         appliedAt = now
                     } else if (now - phaseAt > 9000) {
-                        finish("Couldn't find the Apply button")
+                        finish(R.string.err_apply)
                     }
                 }
                 2 -> if (now - appliedAt > applyWaitMs()) {
@@ -400,7 +413,7 @@ class PaletteService : AccessibilityService() {
                         round = 1
                         palettePhase = 0
                     } else {
-                        finish("Palette refreshed and applied")
+                        finish(R.string.ok_palette)
                     }
                 }
             }
@@ -412,9 +425,9 @@ class PaletteService : AccessibilityService() {
             if (round == 0) {
                 round = 1
                 palettePhase = 0
-                setStatus("Opening Colour palette again…")
+                setStatus(getString(R.string.st_reopen))
             } else {
-                finish("Palette refreshed and applied")
+                finish(R.string.ok_palette)
                 return
             }
         }
@@ -468,13 +481,13 @@ class PaletteService : AccessibilityService() {
             }
 
             val title = TextView(this)
-            title.text = "Updating colour palette"
+            title.text = getString(R.string.cover_title)
             title.setTextColor(Color.WHITE)
             title.textSize = 20f
             card.addView(title)
 
             val status = TextView(this)
-            status.text = "Wallpaper set"
+            status.text = getString(R.string.wp_set)
             status.setTextColor(Color.parseColor("#DDFFFFFF"))
             status.textSize = 15f
             status.gravity = Gravity.CENTER
@@ -488,8 +501,8 @@ class PaletteService : AccessibilityService() {
             card.addView(bar, bp)
 
             val cancel = Button(this)
-            cancel.text = "Cancel"
-            cancel.setOnClickListener { finish("Cancelled") }
+            cancel.text = getString(R.string.cancel)
+            cancel.setOnClickListener { finish(R.string.cancelled) }
             val cp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
             cp.topMargin = (12 * d).toInt()
             card.addView(cancel, cp)
@@ -533,16 +546,17 @@ class PaletteService : AccessibilityService() {
         }
     }
 
-    private fun finish(message: String) {
-        val failed = message.startsWith("Couldn't") || message.startsWith("Palette step timed out")
+    private fun finish(msgRes: Int) {
+        val message = getString(msgRes)
+        val failed = msgRes == R.string.err_timeout || msgRes == R.string.err_switch || msgRes == R.string.err_apply
         if (failed && !paletteRetried && !navigateOnly) {
             // one automatic retry of the palette step (wallpaper is already set)
             paletteRetried = true
-            logRun("$message - retrying", false)
+            logRun(getString(R.string.retrying_suffix, message), false)
             main.removeCallbacks(tick)
             hideCover()
             performGlobalAction(GLOBAL_ACTION_HOME)
-            toast("Palette step failed - retrying")
+            toast(getString(R.string.palette_retry_toast))
             main.postDelayed({ beginPalette() }, 2000)
             return
         }
@@ -551,8 +565,8 @@ class PaletteService : AccessibilityService() {
         hideCover()
         main.removeCallbacks(tick)
         performGlobalAction(GLOBAL_ACTION_HOME)
-        val ok = message.startsWith("Palette refreshed")
-        if (message == "Cancelled") toast(message) else report(message, ok)
+        val ok = msgRes == R.string.ok_palette
+        if (msgRes == R.string.cancelled) toast(message) else report(message, ok)
     }
 
     /** Keeps the last 10 runs ("time|screen|ok|message", newest first) for the Run log in Settings. */
@@ -560,7 +574,7 @@ class PaletteService : AccessibilityService() {
         try {
             val p = prefs()
             val time = SimpleDateFormat("dd.MM. HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
-            val line = "$time|${if (runState == "inner") "Inner" else "Cover"}|${if (ok) 1 else 0}|${message.replace("|", "/").replace("\n", " ")}"
+            val line = "$time|${getString(if (runState == "inner") R.string.log_inner else R.string.log_cover)}|${if (ok) 1 else 0}|${message.replace("|", "/").replace("\n", " ")}"
             val old = (p.getString("log", "") ?: "").split("\n").filter { it.isNotBlank() }
             p.edit().putString("log", (listOf(line) + old).take(10).joinToString("\n")).apply()
         } catch (e: Exception) {
@@ -579,7 +593,7 @@ class PaletteService : AccessibilityService() {
             ) return
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(
-                NotificationChannel("result", "Run result", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel("result", getString(R.string.notif_channel), NotificationManager.IMPORTANCE_DEFAULT)
             )
             val open = android.app.PendingIntent.getActivity(
                 this, 0, Intent(this, MainActivity::class.java),
@@ -587,7 +601,7 @@ class PaletteService : AccessibilityService() {
             )
             val n = Notification.Builder(this, "result")
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle(if (ok) "Bing Palette" else "Bing Palette - problem")
+                .setContentTitle(if (ok) getString(R.string.app_name) else getString(R.string.notif_problem))
                 .setContentText(message)
                 .setContentIntent(open)
                 .setAutoCancel(true)

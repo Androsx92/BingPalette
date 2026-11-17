@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
         val openPalette = View.OnClickListener {
             val svc = PaletteService.instance
             if (svc == null) {
-                Toast.makeText(this, "Enable the accessibility service first", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.need_service), Toast.LENGTH_LONG).show()
             } else {
                 svc.openPalettePage()
             }
@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.runButton).setOnClickListener {
             val svc = PaletteService.instance
             if (svc == null) {
-                Toast.makeText(this, "Enable the accessibility service first", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.need_service), Toast.LENGTH_LONG).show()
             } else {
                 svc.runNow()
             }
@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Androsx92/BingPalette")))
             } catch (e: Exception) {
-                Toast.makeText(this, "No browser found", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.no_browser), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -153,13 +153,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (PaletteService.instance != null) {
-            statusTitle.text = "Ready"
-            statusText.text = "Accessibility service is on"
-            enableButton.text = "Manage"
+            statusTitle.text = getString(R.string.ready)
+            statusText.text = getString(R.string.status_on)
+            enableButton.text = getString(R.string.manage)
         } else {
-            statusTitle.text = "Setup needed"
-            statusText.text = "Turn on Bing Palette in Accessibility"
-            enableButton.text = "Enable"
+            statusTitle.text = getString(R.string.setup_needed)
+            statusText.text = getString(R.string.setup_hint)
+            enableButton.text = getString(R.string.enable)
         }
         findViewById<View>(R.id.setupCard).visibility =
             if (PaletteService.instance == null) View.VISIBLE else View.GONE
@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshLog() {
         val lines = (prefs.getString("log", "") ?: "").split("\n").filter { it.isNotBlank() }
-        findViewById<TextView>(R.id.logText).text = if (lines.isEmpty()) "No runs yet." else lines.joinToString("\n") { l ->
+        findViewById<TextView>(R.id.logText).text = if (lines.isEmpty()) getString(R.string.no_runs) else lines.joinToString("\n") { l ->
             val f = l.split("|", limit = 4)
             if (f.size < 4) l else "${if (f[2] == "1") "✓" else "✗"} ${f[0]} · ${f[1]} · ${f[3]}"
         }
@@ -195,13 +195,13 @@ class MainActivity : AppCompatActivity() {
                         currentInfo = info
                         currentBmp = bmp
                         previewImage.setImageBitmap(bmp)
-                        previewTitle.text = info.title.ifEmpty { "Today's image" }
+                        previewTitle.text = info.title.ifEmpty { getString(R.string.today_image) }
                         previewSub.text = Markets.label(mkt) + "\n" + info.copyright
                         showColours(main, others)
                     }
                 }
             } catch (e: Exception) {
-                runOnUiThread { if (!isDestroyed) previewTitle.text = "Preview unavailable (offline?)" }
+                runOnUiThread { if (!isDestroyed) previewTitle.text = getString(R.string.preview_unavailable) }
             }
         }.start()
     }
@@ -254,7 +254,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun historyLabel(date: String, index: Int): String {
-        if (index == 0) return "Today"
+        if (index == 0) return getString(R.string.today)
         return try {
             val d = SimpleDateFormat("yyyyMMdd", Locale.US).parse(date)!!
             SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(d)
@@ -264,14 +264,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openHistoryImage(info: Bing.Info) {
-        Toast.makeText(this, "Loading…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.loading_toast), Toast.LENGTH_SHORT).show()
         Thread {
             try {
                 val b = Bing.image(info, "1366x768")
                 val bmp = BitmapFactory.decodeByteArray(b, 0, b.size)
                 runOnUiThread { if (!isDestroyed) showImageDialog(bmp, info) }
             } catch (e: Exception) {
-                runOnUiThread { Toast.makeText(this, "Couldn't load image", Toast.LENGTH_SHORT).show() }
+                runOnUiThread { Toast.makeText(this, getString(R.string.couldnt_load), Toast.LENGTH_SHORT).show() }
             }
         }.start()
     }
@@ -296,7 +296,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showImageDialog(bmp: Bitmap? = currentBmp, info: Bing.Info? = currentInfo) {
         if (bmp == null) {
-            Toast.makeText(this, "Image not loaded yet", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.image_not_loaded), Toast.LENGTH_SHORT).show()
             return
         }
         val d = resources.displayMetrics.density
@@ -333,10 +333,10 @@ class MainActivity : AppCompatActivity() {
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER
         val download = MaterialButton(this)
-        download.text = "Download"
+        download.text = getString(R.string.btn_download)
         download.setOnClickListener { downloadImage(info) }
         val close = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
-        close.text = "Close"
+        close.text = getString(R.string.btn_close)
         close.setOnClickListener { dialog.dismiss() }
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.marginEnd = (12 * d).toInt()
@@ -369,7 +369,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun downloadImage(info: Bing.Info? = currentInfo) {
         if (info == null) return
-        Toast.makeText(this, "Downloading…", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, getString(R.string.downloading), Toast.LENGTH_SHORT).show()
         Thread {
             try {
                 val bytes = try {
@@ -387,9 +387,9 @@ class MainActivity : AppCompatActivity() {
                 val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                     ?: throw RuntimeException("Could not create file")
                 contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-                runOnUiThread { Toast.makeText(this, "Saved to Pictures/BingPalette", Toast.LENGTH_LONG).show() }
+                runOnUiThread { Toast.makeText(this, getString(R.string.saved_to), Toast.LENGTH_LONG).show() }
             } catch (e: Exception) {
-                runOnUiThread { Toast.makeText(this, "Download failed: ${e.message}", Toast.LENGTH_LONG).show() }
+                runOnUiThread { Toast.makeText(this, getString(R.string.download_failed, e.message ?: ""), Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
@@ -398,14 +398,14 @@ class MainActivity : AppCompatActivity() {
         val labels = Markets.codes.map { Markets.label(it) }.toTypedArray()
         val current = Markets.codes.indexOf(prefs.getString("mkt", "de-DE") ?: "de-DE")
         MaterialAlertDialogBuilder(this)
-            .setTitle("Image country / language")
+            .setTitle(getString(R.string.market_title))
             .setSingleChoiceItems(labels, current) { dlg, which ->
                 prefs.edit().putString("mkt", Markets.codes[which]).apply()
                 marketDrop.setText(labels[which], false)
                 loadPreview()
                 dlg.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -417,7 +417,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showColours(main: Int, others: List<Int>) {
         dotMain.background = oval(main)
-        dotMainLabel.text = String.format(Locale.US, "Dominant colour\n#%06X", 0xFFFFFF and main)
+        dotMainLabel.text = getString(R.string.dominant, 0xFFFFFF and main)
         dotRow.removeAllViews()
         val d = resources.displayMetrics.density
         for (c in others) {
@@ -433,6 +433,10 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------- settings tab
 
     private fun bindSettings() {
+        val wifiSwitch = findViewById<MaterialSwitch>(R.id.wifiSwitch)
+        wifiSwitch.isChecked = prefs.getBoolean("wifi_only", false)
+        wifiSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("wifi_only", on).apply() }
+
         val autoSwitch = findViewById<MaterialSwitch>(R.id.autoSwitch)
         autoSwitch.isChecked = prefs.getBoolean("auto", true)
         autoSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("auto", on).apply() }
@@ -444,7 +448,7 @@ class MainActivity : AppCompatActivity() {
                 .setHour(prefs.getInt("hour", 5))
                 .setMinute(prefs.getInt("minute", 0))
                 .setInputMode(MaterialTimePicker.INPUT_MODE_CLOCK)
-                .setTitleText("Start after")
+                .setTitleText(getString(R.string.start_after))
                 .build()
             picker.addOnPositiveButtonClickListener {
                 prefs.edit().putInt("hour", picker.hour).putInt("minute", picker.minute).apply()

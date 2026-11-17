@@ -52,6 +52,6 @@ object Markets {
     fun label(code: String): String {
         val region = code.substringAfter('-').uppercase()
         val flag = region.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
-        return "$flag  ${Locale.forLanguageTag(code).getDisplayName(Locale.ENGLISH)}"
+        return "$flag  ${Locale.forLanguageTag(code).getDisplayName(Locale.getDefault())}"
     }
 }

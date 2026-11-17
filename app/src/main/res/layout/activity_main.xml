@@ -45,7 +45,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Bing Palette"
+                            android:text="@string/app_name"
                             android:textAppearance="?attr/textAppearanceHeadlineLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -53,7 +53,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Today's wallpaper"
+                            android:text="@string/home_subtitle"
                             android:textAppearance="?attr/textAppearanceBodyLarge"
                             android:textColor="?attr/colorOnSurfaceVariant" />
                     </LinearLayout>
@@ -62,7 +62,7 @@
                         android:id="@+id/runButton"
                         android:layout_width="wrap_content"
                         android:layout_height="52dp"
-                        android:text="Run"
+                        android:text="@string/run"
                         android:textSize="16sp"
                         app:cornerRadius="26dp"
                         app:icon="@android:drawable/ic_media_play"
@@ -95,7 +95,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Setup needed"
+                                android:text="@string/setup_needed"
                                 android:textAppearance="?attr/textAppearanceTitleMedium"
                                 android:textColor="?attr/colorOnSurface" />
 
@@ -103,7 +103,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Turn on Bing Palette in Accessibility"
+                                android:text="@string/setup_hint"
                                 android:textAppearance="?attr/textAppearanceBodySmall"
                                 android:textColor="?attr/colorOnSurfaceVariant" />
                         </LinearLayout>
@@ -114,7 +114,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="12dp"
-                            android:text="Enable" />
+                            android:text="@string/enable" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -134,7 +134,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="240dp"
                             android:background="?attr/colorSurfaceVariant"
-                            android:contentDescription="Today's Bing image"
+                            android:contentDescription="@string/todays_bing_image"
                             android:scaleType="centerCrop" />
 
                         <LinearLayout
@@ -147,7 +147,7 @@
                                 android:id="@+id/previewTitle"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Loading..."
+                                android:text="@string/loading"
                                 android:textAppearance="?attr/textAppearanceTitleLarge"
                                 android:textColor="?attr/colorOnSurface" />
 
@@ -209,7 +209,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="20dp"
-                            android:text="Last 7 days"
+                            android:text="@string/last7"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -257,7 +257,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="20dp"
-                    android:text="Settings"
+                    android:text="@string/settings"
                     android:textAppearance="?attr/textAppearanceHeadlineLarge"
                     android:textColor="?attr/colorOnSurface" />
 
@@ -323,7 +323,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Schedule"
+                            android:text="@string/schedule"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -332,7 +332,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Run automatically once a day"
+                            android:text="@string/run_auto"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                         <LinearLayout
@@ -346,7 +346,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="On the first unlock after"
+                                android:text="@string/first_unlock"
                                 android:textAppearance="?attr/textAppearanceBodyLarge"
                                 android:textColor="?attr/colorOnSurface" />
 
@@ -357,6 +357,14 @@
                                 android:layout_height="wrap_content"
                                 android:textSize="20sp" />
                         </LinearLayout>
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/wifiSwitch"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/wifi_only"
+                            android:textAppearance="?attr/textAppearanceBodyLarge" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
@@ -377,7 +385,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Wallpaper"
+                            android:text="@string/wallpaper"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -386,7 +394,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:hint="Image country / language">
+                            android:hint="@string/market_title">
 
                             <com.google.android.material.textfield.MaterialAutoCompleteTextView
                                 android:id="@+id/marketDrop"
@@ -399,7 +407,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="16dp"
-                            android:text="Apply to"
+                            android:text="@string/apply_to"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -415,21 +423,21 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Home &amp; lock" />
+                                android:text="@string/home_lock" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipTargetHome"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Home only" />
+                                android:text="@string/home_only" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipTargetLock"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Lock only" />
+                                android:text="@string/lock_only" />
                         </com.google.android.material.chip.ChipGroup>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -451,7 +459,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Colour palette"
+                            android:text="@string/colour_palette"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -459,7 +467,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Switches Colour palette off and on in One UI, then presses Apply. Turn it off to change only the wallpaper."
+                            android:text="@string/palette_desc"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -468,7 +476,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Match palette to wallpaper"
+                            android:text="@string/match_palette"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                         <com.google.android.material.materialswitch.MaterialSwitch
@@ -476,7 +484,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Cover screen with today's image while updating"
+                            android:text="@string/cover_switch"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                         <com.google.android.material.materialswitch.MaterialSwitch
@@ -484,14 +492,14 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Show a notification with the result"
+                            android:text="@string/notify_switch"
                             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Speed"
+                            android:text="@string/speed"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -507,42 +515,42 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Slow" />
+                                android:text="@string/speed_slow" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedFast"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Normal" />
+                                android:text="@string/speed_normal" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedUltra"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Fast" />
+                                android:text="@string/speed_fast" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedFaster"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Faster" />
+                                android:text="@string/speed_faster" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipSpeedMax"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Ultra fast" />
+                                android:text="@string/speed_ultra" />
                         </com.google.android.material.chip.ChipGroup>
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Phone language (Settings screens)"
+                            android:text="@string/phone_lang"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -558,7 +566,7 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Auto" />
+                                android:text="@string/lang_auto" />
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipLangEn"
                                 style="@style/Widget.Material3.Chip.Filter"
@@ -583,7 +591,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
-                            android:text="Do it on"
+                            android:text="@string/do_it_on"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -599,21 +607,21 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Daily auto run" />
+                                android:text="@string/when_daily" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipWhenManual"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Run now only" />
+                                android:text="@string/when_manual" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipWhenBoth"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Both" />
+                                android:text="@string/when_both" />
                         </com.google.android.material.chip.ChipGroup>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -635,7 +643,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Foldable"
+                            android:text="@string/foldable"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -643,7 +651,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Each screen has its own wallpaper, so the update runs once a day on every screen you pick: on unlock, or right after you fold or unfold the phone."
+                            android:text="@string/foldable_desc"
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -660,21 +668,21 @@
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Both screens" />
+                                android:text="@string/screens_both" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipScreensInner"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Inner only" />
+                                android:text="@string/screens_inner" />
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/chipScreensCover"
                                 style="@style/Widget.Material3.Chip.Filter"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Cover only" />
+                                android:text="@string/screens_cover" />
                         </com.google.android.material.chip.ChipGroup>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -695,7 +703,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Run log"
+                            android:text="@string/run_log"
                             android:textAppearance="?attr/textAppearanceTitleLarge"
                             android:textColor="?attr/colorOnSurface" />
 
@@ -713,7 +721,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Clear log" />
+                            android:text="@string/clear_log" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
                             <TextView
@@ -750,7 +758,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="0dp"
-                    android:text="About"
+                    android:text="@string/about"
                     android:textAppearance="?attr/textAppearanceHeadlineLarge"
                     android:textColor="?attr/colorOnSurface" />
 
@@ -758,7 +766,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="Bing Palette sets today\'s Bing image of the day as your wallpaper, then makes Samsung One UI update its Colour palette to match it, once a day or whenever you tap Run."
+                    android:text="@string/about_text"
                     android:textAppearance="?attr/textAppearanceBodyLarge"
                     android:textColor="?attr/colorOnSurface" />
 
@@ -766,7 +774,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="24dp"
-                    android:text="How it works"
+                    android:text="@string/how_title"
                     android:textAppearance="?attr/textAppearanceTitleLarge"
                     android:textColor="?attr/colorOnSurface" />
 
@@ -774,7 +782,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:text="The wallpaper is set with Android\'s normal wallpaper API. One UI has no public way to refresh the palette, so the app uses an accessibility service that opens Settings > Wallpaper and style > Colour palette, switches the palette off, presses Apply, then switches it on and presses Apply again. The service only acts while Settings is in front, reads nothing else and sends nothing anywhere. The only network access is downloading the Bing image and its description."
+                    android:text="@string/how_text"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurface" />
 
@@ -783,7 +791,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="56dp"
                     android:layout_marginTop="24dp"
-                    android:text="Source code on GitHub"
+                    android:text="@string/github"
                     app:cornerRadius="28dp" />
 
                 <TextView
