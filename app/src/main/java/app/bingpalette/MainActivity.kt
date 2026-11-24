@@ -23,7 +23,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import org.json.JSONObject
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -56,6 +59,55 @@ class MainActivity : AppCompatActivity() {
     private lateinit var marketDrop: MaterialAutoCompleteTextView
     private var currentInfo: Bing.Info? = null
     private var currentBmp: Bitmap? = null
+
+    // Backup: export / import all settings as a small JSON file
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        try {
+            val json = JSONObject()
+            for ((k, v) in prefs.all) {
+                if (k == "log" || k == "palette_day" || k == "pause_day" || k.startsWith("last_")) continue
+                val o = JSONObject()
+                when (v) {
+                    is Boolean -> o.put("t", "b").put("v", v)
+                    is Int -> o.put("t", "i").put("v", v)
+                    is Long -> o.put("t", "l").put("v", v)
+                    is Float -> o.put("t", "f").put("v", v.toDouble())
+                    is String -> o.put("t", "s").put("v", v)
+                    else -> continue
+                }
+                json.put(k, o)
+            }
+            contentResolver.openOutputStream(uri)!!.use { it.write(json.toString(2).toByteArray()) }
+            Toast.makeText(this, getString(R.string.backup_saved), Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, e.message ?: "Error", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        try {
+            val text = contentResolver.openInputStream(uri)!!.use { String(it.readBytes()) }
+            val json = JSONObject(text)
+            val e = prefs.edit()
+            for (k in json.keys()) {
+                val o = json.getJSONObject(k)
+                when (o.getString("t")) {
+                    "b" -> e.putBoolean(k, o.getBoolean("v"))
+                    "i" -> e.putInt(k, o.getInt("v"))
+                    "l" -> e.putLong(k, o.getLong("v"))
+                    "f" -> e.putFloat(k, o.getDouble("v").toFloat())
+                    "s" -> e.putString(k, o.getString("v"))
+                }
+            }
+            e.apply()
+            Toast.makeText(this, getString(R.string.backup_loaded), Toast.LENGTH_SHORT).show()
+            recreate()
+        } catch (ex: Exception) {
+            Toast.makeText(this, getString(R.string.backup_failed), Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,6 +156,26 @@ class MainActivity : AppCompatActivity() {
         dotMain.setOnClickListener(openPalette)
         dotMainLabel.setOnClickListener(openPalette)
 
+        findViewById<MaterialButton>(R.id.exportButton).setOnClickListener {
+            exportLauncher.launch("BingPalette_settings.json")
+        }
+        findViewById<MaterialButton>(R.id.importButton).setOnClickListener {
+            importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+        }
+        findViewById<MaterialButton>(R.id.diagButton).setOnClickListener {
+            val svc = PaletteService.instance
+            if (svc == null) {
+                Toast.makeText(this, getString(R.string.need_service), Toast.LENGTH_LONG).show()
+            } else {
+                svc.diagnose()
+            }
+        }
+        findViewById<MaterialButton>(R.id.pauseButton).setOnClickListener {
+            val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+            if (prefs.getString("pause_day", "") == today) prefs.edit().remove("pause_day").apply()
+            else prefs.edit().putString("pause_day", today).apply()
+            refreshPause()
+        }
         findViewById<MaterialButton>(R.id.clearLogButton).setOnClickListener {
             prefs.edit().remove("log").apply()
             refreshLog()
@@ -150,8 +222,35 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.infoVersion).text = versionLabel
     }
 
+    private fun refreshPause() {
+        val today = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
+        val paused = prefs.getString("pause_day", "") == today
+        findViewById<MaterialButton>(R.id.pauseButton).text =
+            getString(if (paused) R.string.paused_today else R.string.pause_today)
+    }
+
+    private fun shareImage(bmp: Bitmap, info: Bing.Info?) {
+        try {
+            val dir = java.io.File(cacheDir, "shared")
+            dir.mkdirs()
+            val f = java.io.File(dir, "bing_image.jpg")
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", f)
+            val send = Intent(Intent.ACTION_SEND)
+                .setType("image/jpeg")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val caption = listOfNotNull(info?.title, info?.copyright).filter { it.isNotBlank() }.joinToString("\n")
+            if (caption.isNotEmpty()) send.putExtra(Intent.EXTRA_TEXT, caption)
+            startActivity(Intent.createChooser(send, getString(R.string.share_title)))
+        } catch (e: Exception) {
+            Toast.makeText(this, getString(R.string.share_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        refreshPause()
         if (PaletteService.instance != null) {
             statusTitle.text = getString(R.string.ready)
             statusText.text = getString(R.string.status_on)
@@ -340,7 +439,13 @@ class MainActivity : AppCompatActivity() {
         close.setOnClickListener { dialog.dismiss() }
         val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
         lp.marginEnd = (12 * d).toInt()
+        val share = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
+        share.text = getString(R.string.btn_share)
+        share.setOnClickListener { shareImage(bmp, info) }
+        val lp2 = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        lp2.marginEnd = (12 * d).toInt()
         row.addView(download, lp)
+        row.addView(share, lp2)
         row.addView(close)
         val rlp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
         rlp.bottomMargin = (48 * d).toInt()

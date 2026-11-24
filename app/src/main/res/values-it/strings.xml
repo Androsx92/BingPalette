@@ -98,4 +98,21 @@
     <string name="notif_problem">Bing Palette – problema</string>
     <string name="shortcut_run">Avvia ora</string>
     <string name="shortcut_run_long">Avvia ora (sfondo + tavolozza)</string>
+    <string name="pause_today">Sospendi l\'esecuzione automatica per oggi</string>
+    <string name="paused_today">In pausa per oggi – tocca per riprendere</string>
+    <string name="btn_share">Condividi</string>
+    <string name="share_title">Condividi immagine</string>
+    <string name="share_failed">Impossibile condividere l\'immagine</string>
+    <string name="tools">Strumenti</string>
+    <string name="backup_export">Esporta impostazioni</string>
+    <string name="backup_import">Importa impostazioni</string>
+    <string name="backup_saved">Impostazioni esportate</string>
+    <string name="backup_loaded">Impostazioni importate</string>
+    <string name="backup_failed">Impossibile leggere il file</string>
+    <string name="diag_button">Salva info pagina tavolozza</string>
+    <string name="diag_hint">Per testare la scelta automatica: apre la pagina Tavolozza colori e salva ciò che l\'app vede in Download/BingPalette.</string>
+    <string name="diag_running">Lettura pagina tavolozza… non toccare lo schermo</string>
+    <string name="diag_saved">Info tavolozza salvate in Download/BingPalette</string>
+    <string name="diag_failed">Diagnosi non riuscita: %1$s</string>
+    <string name="tile_label">Avvia Bing Palette</string>
 </resources>

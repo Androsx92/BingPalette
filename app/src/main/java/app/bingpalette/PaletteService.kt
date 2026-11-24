@@ -125,6 +125,7 @@ class PaletteService : AccessibilityService() {
         val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         if (minutes < p.getInt("hour", 5) * 60 + p.getInt("minute", 0)) return false
         if (p.getString("last_$state", "") == today()) return false
+        if (p.getString("pause_day", "") == today()) return false
         if (lastAttemptAt != 0L && SystemClock.elapsedRealtime() - lastAttemptAt < 10 * 60 * 1000) return false
         return true
     }
@@ -342,6 +343,14 @@ class PaletteService : AccessibilityService() {
     private fun step() {
         val now = SystemClock.uptimeMillis()
         if (now - startedAt > 45000) {
+            if (diagMode) {
+                diagMode = false
+                running = false
+                navigateOnly = false
+                main.removeCallbacks(tick)
+                toast(getString(R.string.diag_failed, "palette page not found"))
+                return
+            }
             finish(R.string.err_timeout)
             return
         }
@@ -362,6 +371,13 @@ class PaletteService : AccessibilityService() {
         if (find(root, pageMarker) != null) {
             if (paletteSeenAt == 0L) paletteSeenAt = now
             if (now - paletteSeenAt < pageWaitMs()) return // let the page finish loading
+            if (navigateOnly && diagMode) { // diagnostic: record the page, then go home
+                diagMode = false
+                navigateOnly = false
+                main.removeCallbacks(tick)
+                diagCapture(1)
+                return
+            }
             if (navigateOnly) { // we only wanted to get here: stop and leave the page open for the user
                 navigateOnly = false
                 running = false
@@ -667,6 +683,145 @@ class PaletteService : AccessibilityService() {
         for (i in 0 until n.childCount) {
             n.getChild(i)?.let { collectScrollable(it, out) }
         }
+    }
+
+
+    // ---------------------------------------------------------------- diagnostic (auto-match research)
+
+    private var diagMode = false
+    private val diagText = StringBuilder()
+    private val diagShots = ArrayList<android.graphics.Bitmap>()
+    private val BASIC_TAB = listOf("Basic colours", "Basic colors", "Grundfarben", "Basisfarben", "Colori di base", "Colori base")
+
+    /** Opens the Colour palette page and saves everything the app can see there (text + screenshots). */
+    fun diagnose() {
+        if (running) return
+        running = true
+        diagMode = true
+        diagText.setLength(0)
+        diagShots.clear()
+        val v = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
+        diagText.append("Bing Palette $v diagnostic\n")
+        diagText.append("Device: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\n")
+        diagText.append("Screen: ${screenState()}, ${resources.displayMetrics.widthPixels}x${resources.displayMetrics.heightPixels}\n\n")
+        toast(getString(R.string.diag_running))
+        beginPalette(navigateOnly = true)
+    }
+
+    private fun diagCapture(n: Int) {
+        val root = rootInActiveWindow
+        diagText.append("=== Snapshot $n ===\n")
+        val rects = ArrayList<Pair<String, android.graphics.Rect>>()
+        if (root == null) diagText.append("(no window content)\n") else diagDump(root, 0, rects, intArrayOf(0))
+        diagScreenshot { bmp ->
+            if (bmp != null) {
+                diagShots.add(bmp)
+                diagText.append("\n--- Colours of tappable items (snapshot $n) ---\n")
+                for ((name, r) in rects) {
+                    if (r.width() <= 0 || r.height() <= 0) continue
+                    val pts = (1..6).map { i -> r.top + r.height() * (2 * i - 1) / 12 }
+                    val cols = pts.joinToString(" ") { y -> diagColour(bmp, r.centerX(), y) }
+                    diagText.append("$name $r -> $cols\n")
+                }
+            } else {
+                diagText.append("(no screenshot)\n")
+            }
+            diagText.append("\n")
+            val basic = if (n == 1 && root != null) find(root, BASIC_TAB) else null
+            if (basic != null) {
+                click(basic)
+                main.postDelayed({ diagCapture(2) }, 2000)
+            } else {
+                if (n == 1) diagText.append("(Basic colours tab not found)\n")
+                diagFinish()
+            }
+        }
+    }
+
+    private fun diagDump(node: AccessibilityNodeInfo, depth: Int, rects: ArrayList<Pair<String, android.graphics.Rect>>, count: IntArray) {
+        if (depth > 40 || count[0] > 1500) return
+        count[0]++
+        val r = android.graphics.Rect()
+        node.getBoundsInScreen(r)
+        val flags = buildString {
+            if (node.isClickable) append("C")
+            if (node.isCheckable) append("K")
+            if (node.isChecked) append("X")
+            if (node.isSelected) append("S")
+            if (node.isEnabled) append("E")
+            if (node.isScrollable) append("R")
+        }
+        val cls = node.className?.toString()?.substringAfterLast('.') ?: "?"
+        val name = "#${count[0]} $cls"
+        diagText.append("  ".repeat(depth)).append(name)
+            .append(" [").append(flags).append("] ").append(r.toShortString())
+        node.viewIdResourceName?.let { diagText.append(" id=").append(it) }
+        node.text?.let { diagText.append(" text=\"").append(it).append('"') }
+        node.contentDescription?.let { diagText.append(" desc=\"").append(it).append('"') }
+        diagText.append('\n')
+        if (node.isClickable) rects.add(name to r)
+        for (i in 0 until node.childCount) node.getChild(i)?.let { diagDump(it, depth + 1, rects, count) }
+    }
+
+    private fun diagColour(b: android.graphics.Bitmap, x: Int, y: Int): String {
+        if (x < 0 || y < 0 || x >= b.width || y >= b.height) return "-"
+        return String.format("#%06X", 0xFFFFFF and b.getPixel(x, y))
+    }
+
+    private fun diagScreenshot(cb: (android.graphics.Bitmap?) -> Unit) {
+        if (Build.VERSION.SDK_INT < 30) { cb(null); return }
+        try {
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+                override fun onSuccess(r: ScreenshotResult) {
+                    val hb = r.hardwareBuffer
+                    val b = android.graphics.Bitmap.wrapHardwareBuffer(hb, r.colorSpace)
+                        ?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                    hb.close()
+                    cb(b)
+                }
+                override fun onFailure(code: Int) {
+                    diagText.append("screenshot failed, code $code (switch the accessibility service off and on once)\n")
+                    cb(null)
+                }
+            })
+        } catch (e: Exception) {
+            diagText.append("screenshot error: ${e.message}\n")
+            cb(null)
+        }
+    }
+
+    private fun diagFinish() {
+        val text = diagText.toString()
+        val shots = ArrayList(diagShots)
+        diagShots.clear()
+        Thread {
+            var err: String? = null
+            try {
+                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Calendar.getInstance().time)
+                saveDownload("palette_diag_$stamp.txt", "text/plain") { it.write(text.toByteArray()) }
+                shots.forEachIndexed { i, b ->
+                    saveDownload("palette_diag_${stamp}_${i + 1}.png", "image/png") { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                }
+            } catch (e: Exception) {
+                err = e.message ?: e.javaClass.simpleName
+            }
+            main.post {
+                running = false
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                toast(if (err == null) getString(R.string.diag_saved) else getString(R.string.diag_failed, err))
+            }
+        }.start()
+    }
+
+    private fun saveDownload(name: String, mime: String, write: (java.io.OutputStream) -> Unit) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
+            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/BingPalette")
+        }
+        val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw RuntimeException("Could not create $name")
+        contentResolver.openOutputStream(uri)!!.use(write)
     }
 
     private fun toast(msg: String) {

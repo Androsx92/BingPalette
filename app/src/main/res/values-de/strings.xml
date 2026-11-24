@@ -98,4 +98,21 @@
     <string name="notif_problem">Bing Palette – Problem</string>
     <string name="shortcut_run">Jetzt starten</string>
     <string name="shortcut_run_long">Jetzt starten (Hintergrundbild + Palette)</string>
+    <string name="pause_today">Automatik heute pausieren</string>
+    <string name="paused_today">Heute pausiert – tippen zum Fortsetzen</string>
+    <string name="btn_share">Teilen</string>
+    <string name="share_title">Bild teilen</string>
+    <string name="share_failed">Bild konnte nicht geteilt werden</string>
+    <string name="tools">Werkzeuge</string>
+    <string name="backup_export">Einstellungen exportieren</string>
+    <string name="backup_import">Einstellungen importieren</string>
+    <string name="backup_saved">Einstellungen exportiert</string>
+    <string name="backup_loaded">Einstellungen importiert</string>
+    <string name="backup_failed">Datei konnte nicht gelesen werden</string>
+    <string name="diag_button">Infos zur Palettenseite speichern</string>
+    <string name="diag_hint">Zum Testen der automatischen Farbwahl: öffnet die Farbpalette-Seite und speichert, was die App sieht, in Download/BingPalette.</string>
+    <string name="diag_running">Palettenseite wird gelesen … bitte Bildschirm nicht berühren</string>
+    <string name="diag_saved">Paletten-Infos gespeichert in Download/BingPalette</string>
+    <string name="diag_failed">Diagnose fehlgeschlagen: %1$s</string>
+    <string name="tile_label">Bing Palette starten</string>
 </resources>

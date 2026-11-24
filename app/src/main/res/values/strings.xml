@@ -99,4 +99,21 @@
     <string name="notif_problem">Bing Palette - problem</string>
     <string name="shortcut_run">Run now</string>
     <string name="shortcut_run_long">Run now (wallpaper + palette)</string>
+    <string name="pause_today">Pause automatic run for today</string>
+    <string name="paused_today">Paused for today – tap to resume</string>
+    <string name="btn_share">Share</string>
+    <string name="share_title">Share image</string>
+    <string name="share_failed">Couldn\'t share image</string>
+    <string name="tools">Tools</string>
+    <string name="backup_export">Export settings</string>
+    <string name="backup_import">Import settings</string>
+    <string name="backup_saved">Settings exported</string>
+    <string name="backup_loaded">Settings imported</string>
+    <string name="backup_failed">Couldn\'t read this file</string>
+    <string name="diag_button">Save palette page info</string>
+    <string name="diag_hint">For testing auto-match: opens the Colour palette page and saves what the app sees to Download/BingPalette.</string>
+    <string name="diag_running">Reading the palette page… please don\'t touch the screen</string>
+    <string name="diag_saved">Palette info saved to Download/BingPalette</string>
+    <string name="diag_failed">Diagnostic failed: %1$s</string>
+    <string name="tile_label">Run Bing Palette</string>
 </resources>
