@@ -1,3 +1,5 @@
+import java.time.LocalDate
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,7 +15,7 @@ android {
         targetSdk = 34
         versionCode = 23
         versionName = "2.5.0"
-        buildConfigField("String", "BUILD_DATE", "\"${java.time.LocalDate.now()}\"")
+        buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now()}\"")
     }
 
     buildFeatures {
