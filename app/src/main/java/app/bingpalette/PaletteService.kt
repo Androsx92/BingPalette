@@ -411,10 +411,11 @@ class PaletteService : AccessibilityService() {
                     applyPresses = 0
                 }
                 1 -> if (now - phaseAt > toggleWaitMs()) {
-                    if (wantOn && !matchDone && prefs().getBoolean("automatch", true)) {
+                    val mode = prefs().getInt("swatch_mode", if (prefs().getBoolean("automatch", true)) 1 else 0)
+                    if (wantOn && !matchDone && mode != 0) {
                         matchDone = true
                         palettePhase = 4 // waiting for the screenshot
-                        autoMatch(root)
+                        autoMatch(root, mode)
                         return
                     }
                     val apply = find(root, applyLabels)
@@ -719,7 +720,7 @@ class PaletteService : AccessibilityService() {
         return out.sortedBy { n -> android.graphics.Rect().also { n.getBoundsInScreen(it) }.left }.take(4)
     }
 
-    private fun autoMatch(root: AccessibilityNodeInfo) {
+    private fun autoMatch(root: AccessibilityNodeInfo, mode: Int) {
         fun skip(why: String) {
             logRun(getString(R.string.am_skipped, why), false)
             palettePhase = 1
@@ -727,6 +728,14 @@ class PaletteService : AccessibilityService() {
         }
         val swatches = findSwatches(root)
         if (swatches.size < 2) { skip("no swatches found"); return }
+        if (mode >= 2) { // fixed swatch chosen in Settings
+            val i = mode - 2
+            if (i >= swatches.size || !click(swatches[i])) { skip("swatch ${i + 1} not found"); return }
+            logRun(getString(R.string.am_fixed, i + 1), true)
+            palettePhase = 1
+            phaseAt = SystemClock.uptimeMillis()
+            return
+        }
         val target = ColorUtil.mainColourOf(File(cacheDir, "bing.jpg"))
         if (target == null) { skip("no wallpaper colour"); return }
         // The cover would be in the screenshot: hide it for a moment

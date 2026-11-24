@@ -175,6 +175,7 @@ class MainActivity : AppCompatActivity() {
             if (prefs.getString("pause_day", "") == today) prefs.edit().remove("pause_day").apply()
             else prefs.edit().putString("pause_day", today).apply()
             refreshPause()
+            RunTileService.refresh(this)
         }
         findViewById<MaterialButton>(R.id.clearLogButton).setOnClickListener {
             prefs.edit().remove("log").apply()
@@ -598,9 +599,12 @@ class MainActivity : AppCompatActivity() {
         }
         if (notifySwitch.isChecked) askNotificationPermission()
 
-        val matchSwitch = findViewById<MaterialSwitch>(R.id.automatchSwitch)
-        matchSwitch.isChecked = prefs.getBoolean("automatch", true)
-        matchSwitch.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("automatch", on).apply() }
+        // swatch_mode: 0 = Samsung's choice, 1 = auto-match, 2..5 = always swatch 1..4
+        bindChips(
+            R.id.swatchGroup, "swatch_mode",
+            listOf(R.id.chipSwSamsung, R.id.chipSwAuto, R.id.chipSw1, R.id.chipSw2, R.id.chipSw3, R.id.chipSw4),
+            if (prefs.getBoolean("automatch", true)) 1 else 0
+        )
 
         // App icon: Light / Dark = enable one of the two launcher aliases
         val iconGroup = findViewById<ChipGroup>(R.id.iconGroup)

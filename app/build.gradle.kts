@@ -13,8 +13,8 @@ android {
         applicationId = "app.bingpalette"
         minSdk = 29
         targetSdk = 34
-        versionCode = 23
-        versionName = "2.5.0"
+        versionCode = 24
+        versionName = "2.5.1"
         buildConfigField("String", "BUILD_DATE", "\"${LocalDate.now()}\"")
     }
 

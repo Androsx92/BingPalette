@@ -122,4 +122,9 @@
     <string name="icon_light">Chiara</string>
     <string name="icon_dark">Scura</string>
     <string name="icon_hint">Dopo il cambio, l\'icona potrebbe sparire dalla schermata Home. Se non ricompare, aggiungila di nuovo dal menu delle app.</string>
+    <string name="swatch_choice">Colore da applicare</string>
+    <string name="swatch_samsung">Scelta di Samsung</string>
+    <string name="swatch_auto">Automatica</string>
+    <string name="am_fixed">Colore fisso: colore %1$d</string>
+    <string name="tile_paused">In pausa oggi</string>
 </resources>

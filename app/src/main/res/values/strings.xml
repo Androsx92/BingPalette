@@ -123,4 +123,9 @@
     <string name="icon_light">Light</string>
     <string name="icon_dark">Dark</string>
     <string name="icon_hint">After switching, the icon may disappear from your home screen. If it doesn\'t come back, add it again from the app drawer.</string>
+    <string name="swatch_choice">Swatch to apply</string>
+    <string name="swatch_samsung">Samsung\'s choice</string>
+    <string name="swatch_auto">Auto-match</string>
+    <string name="am_fixed">Fixed swatch: colour %1$d</string>
+    <string name="tile_paused">Paused today</string>
 </resources>

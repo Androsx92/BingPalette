@@ -122,4 +122,9 @@
     <string name="icon_light">Hell</string>
     <string name="icon_dark">Dunkel</string>
     <string name="icon_hint">Nach dem Wechsel kann das Symbol vom Startbildschirm verschwinden. Falls es nicht zurückkommt, füge es aus der App-Übersicht wieder hinzu.</string>
+    <string name="swatch_choice">Anzuwendendes Farbmuster</string>
+    <string name="swatch_samsung">Samsung-Auswahl</string>
+    <string name="swatch_auto">Automatisch</string>
+    <string name="am_fixed">Festes Farbmuster: Farbe %1$d</string>
+    <string name="tile_paused">Heute pausiert</string>
 </resources>
