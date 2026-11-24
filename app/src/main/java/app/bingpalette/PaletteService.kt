@@ -1,0 +1,907 @@
+package app.bingpalette
+
+import android.accessibilityservice.AccessibilityService
+import android.app.KeyguardManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.app.WallpaperManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.os.SystemClock
+import android.provider.Settings
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
+import android.util.DisplayMetrics
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.util.Log
+import android.view.Display
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
+import java.io.File
+import java.io.FileInputStream
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+/**
+ * 1. Downloads today's Bing image and sets it as wallpaper (home / lock / both).
+ * 2. Optionally opens Settings > Wallpaper and style > Colour palette and taps "Apply".
+ *
+ * Runs automatically once per day per screen (inner / cover on a foldable):
+ * on unlock, or when the phone is folded / unfolded.
+ */
+class PaletteService : AccessibilityService() {
+
+    companion object {
+        const val PREFS = "cfg"
+        const val TAG = "BingPalette"
+
+        @Volatile
+        var instance: PaletteService? = null
+
+        // Labels as they appear in Samsung One UI, one set per phone language.
+        // "marker" = a text that only exists on the Colour palette page.
+        private class Labels(
+            val wallpaper: List<String>,
+            val palette: List<String>,
+            val marker: List<String>,
+            val apply: List<String>
+        )
+
+        private val LANGS = listOf(
+            Labels( // English
+                listOf("Wallpaper and style"),
+                listOf("Colour palette", "Color palette"),
+                listOf("Apply palette to app icons"),
+                listOf("Apply")
+            ),
+            Labels( // Deutsch
+                listOf("Hintergrundbild und Stil"),
+                listOf("Farbpalette"),
+                listOf("Palette auf App-Symbole anwenden"),
+                listOf("Anwenden")
+            ),
+            Labels( // Italiano
+                listOf("Sfondo e stile"),
+                listOf("Tavolozza dei colori"),
+                listOf("Applica tavolozza a icone app"),
+                listOf("Applica")
+            )
+        )
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private var running = false
+    private var lastAttemptAt = 0L
+    private var runState = "cover"
+    private var startedAt = 0L
+    private var paletteSeenAt = 0L
+    private var applied = false
+    private var appliedAt = 0L
+
+    private fun prefs() = getSharedPreferences(PREFS, MODE_PRIVATE)
+    private fun today() = SimpleDateFormat("yyyyMMdd", Locale.US).format(Calendar.getInstance().time)
+
+    /** "inner" = unfolded / large display, "cover" = folded or normal phone. */
+    private fun screenState(): String {
+        val dm = DisplayMetrics()
+        val d = (getSystemService(DISPLAY_SERVICE) as DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)
+        @Suppress("DEPRECATION")
+        d.getRealMetrics(dm)
+        val minDp = minOf(dm.widthPixels, dm.heightPixels) / dm.density
+        return if (minDp >= 500) "inner" else "cover"
+    }
+
+    private fun shouldRun(): Boolean {
+        val p = prefs()
+        if (!p.getBoolean("auto", true)) return false
+        val state = screenState()
+        when (p.getInt("screens", 0)) {
+            1 -> if (state != "inner") return false
+            2 -> if (state != "cover") return false
+        }
+        val cal = Calendar.getInstance()
+        val minutes = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+        if (minutes < p.getInt("hour", 5) * 60 + p.getInt("minute", 0)) return false
+        if (p.getString("last_$state", "") == today()) return false
+        if (p.getString("pause_day", "") == today()) return false
+        if (lastAttemptAt != 0L && SystemClock.elapsedRealtime() - lastAttemptAt < 10 * 60 * 1000) return false
+        return true
+    }
+
+    private val unlockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (shouldRun()) runNow(manual = false)
+        }
+    }
+
+    private val foldCheck = Runnable {
+        val km = getSystemService(KeyguardManager::class.java)
+        val pm = getSystemService(PowerManager::class.java)
+        if (!running && pm.isInteractive && !km.isKeyguardLocked && shouldRun()) runNow(manual = false)
+    }
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            main.removeCallbacks(foldCheck)
+            main.postDelayed(foldCheck, 1500)
+        }
+    }
+
+    override fun onServiceConnected() {
+        instance = this
+        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(unlockReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(unlockReceiver, filter)
+        }
+        (getSystemService(DISPLAY_SERVICE) as DisplayManager).registerDisplayListener(displayListener, main)
+    }
+
+    override fun onDestroy() {
+        instance = null
+        hideCover()
+        try {
+            unregisterReceiver(unlockReceiver)
+            (getSystemService(DISPLAY_SERVICE) as DisplayManager).unregisterDisplayListener(displayListener)
+        } catch (_: Exception) {
+        }
+        super.onDestroy()
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onInterrupt() {}
+
+    // ---------------------------------------------------------------- step 1: wallpaper
+
+    /**
+     * @param manual true when started with the buttons in the app, false for the automatic daily run
+     * @param wallpaperOnly true = never touch the colour palette on this run
+     */
+    fun runNow(manual: Boolean = true, wallpaperOnly: Boolean = false, retry: Boolean = false) {
+        if (running) return
+        if (!manual && !retry && prefs().getBoolean("wifi_only", false) && !onUnmeteredNetwork()) {
+            lastAttemptAt = SystemClock.elapsedRealtime()
+            runState = screenState()
+            logRun(getString(R.string.wifi_skipped), false)
+            return
+        }
+        running = true
+        if (!retry) paletteRetried = false
+        lastAttemptAt = SystemClock.elapsedRealtime()
+        runState = screenState()
+        toast(getString(if (runState == "inner") R.string.start_inner else R.string.start_cover))
+        Thread {
+            var error: String? = null
+            try {
+                fetchAndSetWallpaper()
+            } catch (e: Exception) {
+                Log.e(TAG, "wallpaper failed", e)
+                error = e.message ?: e.javaClass.simpleName
+            }
+            main.post {
+                if (error == null) {
+                    val p = prefs()
+                    p.edit().putString("last_$runState", today()).apply()
+                    // palette_when: 0 = daily automatic run only, 1 = "Run now" only, 2 = both
+                    val whenOk = when (p.getInt("palette_when", 2)) {
+                        0 -> !manual
+                        1 -> manual
+                        else -> true
+                    }
+                    // an automatic run touches the palette only once per day (not again for the 2nd screen)
+                    val onceOk = manual || p.getString("palette_day", "") != today()
+                    if (p.getBoolean("palette", true) && !wallpaperOnly && whenOk && onceOk) {
+                        if (!manual) p.edit().putString("palette_day", today()).apply()
+                        beginPalette()
+                    } else {
+                        running = false
+                        report(getString(R.string.wp_set), true)
+                    }
+                } else if (!retry) {
+                    // one automatic retry (e.g. network not ready right after unlocking)
+                    logRun(getString(R.string.wp_failed_retry, error ?: ""), false)
+                    toast(getString(R.string.wp_retry_toast))
+                    main.postDelayed({ running = false; runNow(manual, wallpaperOnly, retry = true) }, 5000)
+                } else {
+                    running = false
+                    report(getString(R.string.wp_failed, error ?: ""), false)
+                }
+            }
+        }.start()
+    }
+
+    /** True on Wi-Fi (or any other unmetered connection). */
+    private fun onUnmeteredNetwork(): Boolean {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+
+    private fun fetchAndSetWallpaper() {
+        val p = prefs()
+        val mkt = p.getString("mkt", "de-DE") ?: "de-DE"
+        val info = Bing.info(mkt)
+        val bytes = try {
+            Bing.image(info, "UHD")
+        } catch (e: Exception) {
+            Bing.image(info, "1920x1080")
+        }
+        val file = File(cacheDir, "bing.jpg")
+        file.writeBytes(bytes)
+
+        val flags = when (p.getInt("target", 0)) {
+            1 -> WallpaperManager.FLAG_SYSTEM
+            2 -> WallpaperManager.FLAG_LOCK
+            else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+        }
+        FileInputStream(file).use { input ->
+            WallpaperManager.getInstance(this).setStream(input, null, true, flags)
+        }
+    }
+
+    // ---------------------------------------------------------------- step 2: palette
+
+    private var paletteRetried = false
+    private var launches = 0
+    private var lastLaunchAt = 0L
+    private var scrollTries = 0
+    // speed: 0 = Slow, 1 = Normal, 2 = Fast, 3 = Faster, 4 = Ultra fast  (all values in milliseconds)
+    private fun speed() = prefs().getInt("speed", 1).coerceIn(0, 4)
+    private fun tickMs() = longArrayOf(800, 500, 250, 180, 120)[speed()]
+    private fun pageWaitMs() = longArrayOf(1500, 1000, 400, 350, 300)[speed()]
+    private fun toggleWaitMs() = longArrayOf(3500, 2000, 1000, 700, 450)[speed()]
+    private fun applyWaitMs() = longArrayOf(3500, 2500, 1500, 1000, 700)[speed()]
+    private fun startDelayMs() = longArrayOf(3000, 2500, 1500, 1000, 700)[speed()]
+
+    // lang setting: 0 = Auto (try every language), 1 = English, 2 = Deutsch, 3 = Italiano
+    private fun activeLangs(): List<Labels> {
+        val l = prefs().getInt("lang", 0)
+        return if (l in 1..LANGS.size) listOf(LANGS[l - 1]) else LANGS
+    }
+    private val paletteRow get() = activeLangs().flatMap { it.palette }
+    private val wallpaperRow get() = activeLangs().flatMap { it.wallpaper }
+    private val pageMarker get() = activeLangs().flatMap { it.marker }
+    private val applyLabels get() = activeLangs().flatMap { it.apply }
+
+    private var round = 0
+    private var applyPresses = 0
+    private var palettePhase = 0 // 0 arrived, 1 switched off, 2 switched on, 3 Apply pressed
+    private var phaseAt = 0L
+
+    private fun launchSettings() {
+        launches++
+        lastLaunchAt = SystemClock.uptimeMillis()
+        startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    private var navigateOnly = false
+
+    /** Opens Settings > Wallpaper and style > Colour palette and stops there, changing nothing. */
+    fun openPalettePage() {
+        if (running) return
+        running = true
+        beginPalette(navigateOnly = true)
+    }
+
+    private fun beginPalette(navigateOnly: Boolean = false) {
+        this.navigateOnly = navigateOnly
+        startedAt = SystemClock.uptimeMillis()
+        paletteSeenAt = 0L
+        applied = false
+        appliedAt = 0L
+        palettePhase = 0
+        round = 0
+        phaseAt = 0L
+        launches = 0
+        scrollTries = 0
+        matchDone = false
+        if (navigateOnly && diagMode) {
+            // diagnostic: no messages, they would cover the swatches in the screenshot
+        } else if (navigateOnly) {
+            toast(getString(R.string.opening_palette))
+        } else {
+            toast(getString(R.string.updating_palette))
+            showCover()
+        }
+        launchSettings()
+        main.postDelayed(tick, startDelayMs())
+    }
+
+    private val tick = object : Runnable {
+        override fun run() {
+            try {
+                step()
+            } catch (e: Exception) {
+                Log.e(TAG, "step failed", e)
+            }
+            if (running) main.postDelayed(this, tickMs())
+        }
+    }
+
+    private fun step() {
+        val now = SystemClock.uptimeMillis()
+        if (now - startedAt > 45000) {
+            if (diagMode) {
+                diagMode = false
+                running = false
+                navigateOnly = false
+                main.removeCallbacks(tick)
+                toast(getString(R.string.diag_failed, "palette page not found"))
+                return
+            }
+            finish(R.string.err_timeout)
+            return
+        }
+        val root = rootInActiveWindow ?: return
+
+        // Only ever touch Settings (or Samsung's palette screens). On any other screen,
+        // e.g. the home screen while Settings is still opening, do nothing at all.
+        val pkg = root.packageName?.toString() ?: ""
+        val inSettings = pkg == "com.android.settings"
+        if (!inSettings && !pkg.startsWith("com.samsung")) {
+            if (launches < 3 && now - lastLaunchAt > 6000) launchSettings()
+            return
+        }
+
+        // On the "Colour palette" page. One UI keeps showing the colour swatches of the
+        // PREVIOUS wallpaper (with Apply greyed out) until the palette switch is turned
+        // off and on again, so we do exactly that, then press Apply if it lights up.
+        if (find(root, pageMarker) != null) {
+            if (paletteSeenAt == 0L) paletteSeenAt = now
+            if (now - paletteSeenAt < pageWaitMs()) return // let the page finish loading
+            if (navigateOnly && diagMode) { // diagnostic: record the page, then go home
+                diagMode = false
+                navigateOnly = false
+                main.removeCallbacks(tick)
+                main.postDelayed({ diagCapture(1) }, 2500) // let any message on screen disappear first
+                return
+            }
+            if (navigateOnly) { // we only wanted to get here: stop and leave the page open for the user
+                navigateOnly = false
+                running = false
+                main.removeCallbacks(tick)
+                return
+            }
+            // Same sequence as by hand, in two rounds:
+            //   round 0: switch OFF -> Apply        (page closes)
+            //   round 1: open again, switch ON -> Apply
+            // One UI reports the switch/Apply state of the accessibility nodes unreliably,
+            // so the switch is tapped exactly ONCE per round (never re-checked) and Apply
+            // is pressed after a fixed wait.
+            val t = findToggle(root)
+            if (t == null) {
+                // The page can show up before its switch is loaded: keep looking for a few seconds
+                if (now - paletteSeenAt < pageWaitMs() + 3000) return
+                finish(R.string.err_switch)
+                return
+            }
+            val wantOn = round == 1
+            when (palettePhase) {
+                0 -> {
+                    setStatus(getString(if (wantOn) R.string.st_on else R.string.st_off))
+                    val isOn = if (t.isCheckable) t.isChecked else !wantOn
+                    if (isOn != wantOn) click(t)
+                    palettePhase = 1
+                    phaseAt = now
+                    applyPresses = 0
+                }
+                1 -> if (now - phaseAt > toggleWaitMs()) {
+                    if (wantOn && !matchDone && prefs().getBoolean("automatch", true)) {
+                        matchDone = true
+                        palettePhase = 4 // waiting for the screenshot
+                        autoMatch(root)
+                        return
+                    }
+                    val apply = find(root, applyLabels)
+                    if (apply != null) {
+                        setStatus(getString(R.string.st_apply, round + 1))
+                        click(apply)
+                        applyPresses++
+                        palettePhase = 2
+                        appliedAt = now
+                    } else if (now - phaseAt > 9000) {
+                        finish(R.string.err_apply)
+                    }
+                }
+                2 -> if (now - appliedAt > applyWaitMs()) {
+                    // Still on the palette page: Apply did not take, press it again (max 4 times)
+                    if (applyPresses < 4) {
+                        find(root, applyLabels)?.let { click(it) }
+                        applyPresses++
+                        appliedAt = now
+                    } else if (round == 0) {
+                        round = 1
+                        palettePhase = 0
+                    } else {
+                        finish(R.string.ok_palette)
+                    }
+                }
+            }
+            return
+        }
+        // Not on the palette page. After round 0's Apply we land back on "Wallpaper and style".
+        paletteSeenAt = 0L
+        if (palettePhase == 2 && now - appliedAt > minOf(1500L, applyWaitMs())) {
+            if (round == 0) {
+                round = 1
+                palettePhase = 0
+                setStatus(getString(R.string.st_reopen))
+            } else {
+                finish(R.string.ok_palette)
+                return
+            }
+        }
+
+        find(root, paletteRow)?.let { if (click(it)) return }
+        find(root, wallpaperRow)?.let { if (click(it)) return }
+        // Label not visible yet: scroll the Settings list a few times only.
+        if (inSettings && scrollTries < 10) {
+            scroll(root, scrollTries < 6)
+            scrollTries++
+        }
+    }
+
+    // ---------------------------------------------------------------- cover screen
+
+    private var cover: FrameLayout? = null
+    private var coverStatus: TextView? = null
+
+    /** Full-screen cover (today's image + status card) drawn over Settings while we tap it. */
+    private fun showCover() {
+        if (cover != null || !prefs().getBoolean("cover", true)) return
+        try {
+            val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val d = resources.displayMetrics.density
+            val frame = FrameLayout(this)
+            frame.setBackgroundColor(Color.parseColor("#101418"))
+
+            val img = ImageView(this)
+            img.scaleType = ImageView.ScaleType.CENTER_CROP
+            try {
+                val f = File(cacheDir, "bing.jpg")
+                val o = BitmapFactory.Options().apply { inSampleSize = 2 }
+                BitmapFactory.decodeFile(f.path, o)?.let { img.setImageBitmap(it) }
+            } catch (e: Exception) {
+                Log.e(TAG, "cover image", e)
+            }
+            frame.addView(img, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+            val scrim = View(this)
+            scrim.setBackgroundColor(Color.parseColor("#66000000"))
+            frame.addView(scrim, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+            val card = LinearLayout(this)
+            card.orientation = LinearLayout.VERTICAL
+            card.gravity = Gravity.CENTER_HORIZONTAL
+            val pad = (24 * d).toInt()
+            card.setPadding(pad, pad, pad, pad)
+            card.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F5000000"))
+                cornerRadius = 28 * d
+            }
+
+            val title = TextView(this)
+            title.text = getString(R.string.cover_title)
+            title.setTextColor(Color.WHITE)
+            title.textSize = 20f
+            card.addView(title)
+
+            val status = TextView(this)
+            status.text = getString(R.string.wp_set)
+            status.setTextColor(Color.parseColor("#DDFFFFFF"))
+            status.textSize = 15f
+            status.gravity = Gravity.CENTER
+            val sp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            sp.topMargin = (8 * d).toInt()
+            card.addView(status, sp)
+
+            val bar = ProgressBar(this)
+            val bp = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
+            bp.topMargin = (16 * d).toInt()
+            card.addView(bar, bp)
+
+            val cancel = Button(this)
+            cancel.text = getString(R.string.cancel)
+            cancel.setOnClickListener { finish(R.string.cancelled) }
+            val cp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            cp.topMargin = (12 * d).toInt()
+            card.addView(cancel, cp)
+
+            val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER)
+            lp.leftMargin = (32 * d).toInt()
+            lp.rightMargin = (32 * d).toInt()
+            frame.addView(card, lp)
+
+            val wlp = WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.OPAQUE
+            )
+            wlp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            wm.addView(frame, wlp)
+            cover = frame
+            coverStatus = status
+        } catch (e: Exception) {
+            Log.e(TAG, "cover failed", e)
+            cover = null
+        }
+    }
+
+    private fun setStatus(msg: String) {
+        main.post { coverStatus?.text = msg }
+    }
+
+    private fun hideCover() {
+        val c = cover ?: return
+        cover = null
+        coverStatus = null
+        try {
+            (getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(c)
+        } catch (e: Exception) {
+            Log.e(TAG, "hide cover", e)
+        }
+    }
+
+    private fun finish(msgRes: Int) {
+        val message = getString(msgRes)
+        val failed = msgRes == R.string.err_timeout || msgRes == R.string.err_switch || msgRes == R.string.err_apply
+        if (failed && !paletteRetried && !navigateOnly) {
+            // one automatic retry of the palette step (wallpaper is already set)
+            paletteRetried = true
+            logRun(getString(R.string.retrying_suffix, message), false)
+            main.removeCallbacks(tick)
+            hideCover()
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            toast(getString(R.string.palette_retry_toast))
+            main.postDelayed({ beginPalette() }, 2000)
+            return
+        }
+        running = false
+        navigateOnly = false
+        hideCover()
+        main.removeCallbacks(tick)
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        val ok = msgRes == R.string.ok_palette
+        if (msgRes == R.string.cancelled) toast(message) else report(message, ok)
+    }
+
+    /** Keeps the last 10 runs ("time|screen|ok|message", newest first) for the Run log in Settings. */
+    private fun logRun(message: String, ok: Boolean) {
+        try {
+            val p = prefs()
+            val time = SimpleDateFormat("dd.MM. HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
+            val line = "$time|${getString(if (runState == "inner") R.string.log_inner else R.string.log_cover)}|${if (ok) 1 else 0}|${message.replace("|", "/").replace("\n", " ")}"
+            val old = (p.getString("log", "") ?: "").split("\n").filter { it.isNotBlank() }
+            p.edit().putString("log", (listOf(line) + old).take(10).joinToString("\n")).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "log failed", e)
+        }
+    }
+
+    /** Toast + (optional) notification with the result of a run. */
+    private fun report(message: String, ok: Boolean) {
+        toast(message)
+        logRun(message, ok)
+        try {
+            if (!prefs().getBoolean("notify", true)) return
+            if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) return
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(
+                NotificationChannel("result", getString(R.string.notif_channel), NotificationManager.IMPORTANCE_DEFAULT)
+            )
+            val open = android.app.PendingIntent.getActivity(
+                this, 0, Intent(this, MainActivity::class.java),
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val n = Notification.Builder(this, "result")
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle(if (ok) getString(R.string.app_name) else getString(R.string.notif_problem))
+                .setContentText(message)
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(1, n)
+        } catch (e: Exception) {
+            Log.e(TAG, "notify failed", e)
+        }
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private fun find(root: AccessibilityNodeInfo, labels: List<String>): AccessibilityNodeInfo? {
+        for (label in labels) {
+            val hit = root.findAccessibilityNodeInfosByText(label)
+                ?.firstOrNull { it.text?.toString()?.trim().equals(label, ignoreCase = true) }
+            if (hit != null) return hit
+        }
+        return null
+    }
+
+    /** The "Colour palette" on/off switch = the top-most checkable node on the page. */
+    private fun findToggle(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val checkable = ArrayList<AccessibilityNodeInfo>()
+        collectCheckable(root, checkable)
+        val rect = android.graphics.Rect()
+        val top = checkable.minByOrNull { n -> n.getBoundsInScreen(rect); rect.top }
+        if (top != null) return top
+        // Fallback: the "Colour palette" label that sits lowest on screen (the row, not the title).
+        val rowRect = android.graphics.Rect()
+        return paletteRow.flatMap { label ->
+            root.findAccessibilityNodeInfosByText(label).orEmpty()
+                .filter { it.text?.toString()?.trim().equals(label, ignoreCase = true) }
+        }.maxByOrNull { n -> n.getBoundsInScreen(rowRect); rowRect.top }
+    }
+
+    private fun collectCheckable(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
+        if (n.isCheckable && n.isVisibleToUser) out.add(n)
+        for (i in 0 until n.childCount) {
+            n.getChild(i)?.let { collectCheckable(it, out) }
+        }
+    }
+
+    private fun click(node: AccessibilityNodeInfo): Boolean {
+        var n: AccessibilityNodeInfo? = node
+        while (n != null) {
+            if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            n = n.parent
+        }
+        return false
+    }
+
+    private fun scroll(root: AccessibilityNodeInfo, forward: Boolean) {
+        val scrollables = ArrayList<AccessibilityNodeInfo>()
+        collectScrollable(root, scrollables)
+        val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+        else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        for (s in scrollables) s.performAction(action)
+    }
+
+    private fun collectScrollable(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
+        if (n.isScrollable) out.add(n)
+        for (i in 0 until n.childCount) {
+            n.getChild(i)?.let { collectScrollable(it, out) }
+        }
+    }
+
+
+    // ---------------------------------------------------------------- auto-match swatch
+
+    private var matchDone = false
+
+    /** The tappable Wallpaper-colour swatches ("Colour 1" ... "Colour 4"), left to right. */
+    private fun findSwatches(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
+        val pagers = ArrayList<AccessibilityNodeInfo>()
+        fun walk(n: AccessibilityNodeInfo, depth: Int) {
+            if (depth > 40) return
+            if (n.className?.toString()?.contains("ViewPager") == true) pagers.add(n)
+            for (i in 0 until n.childCount) n.getChild(i)?.let { walk(it, depth + 1) }
+        }
+        walk(root, 0)
+        val screenW = resources.displayMetrics.widthPixels
+        val out = ArrayList<AccessibilityNodeInfo>()
+        for (p in pagers) for (i in 0 until p.childCount) {
+            val c = p.getChild(i) ?: continue
+            val r = android.graphics.Rect()
+            c.getBoundsInScreen(r)
+            if (c.isClickable && r.width() > 0 && r.height() > r.width() && r.left >= 0 && r.right <= screenW) out.add(c)
+        }
+        return out.sortedBy { n -> android.graphics.Rect().also { n.getBoundsInScreen(it) }.left }.take(4)
+    }
+
+    private fun autoMatch(root: AccessibilityNodeInfo) {
+        fun skip(why: String) {
+            logRun(getString(R.string.am_skipped, why), false)
+            palettePhase = 1
+            phaseAt = SystemClock.uptimeMillis() - toggleWaitMs() // press Apply right away
+        }
+        val swatches = findSwatches(root)
+        if (swatches.size < 2) { skip("no swatches found"); return }
+        val target = ColorUtil.mainColourOf(File(cacheDir, "bing.jpg"))
+        if (target == null) { skip("no wallpaper colour"); return }
+        // The cover would be in the screenshot: hide it for a moment
+        cover?.visibility = View.INVISIBLE
+        main.postDelayed({
+            diagScreenshot { bmp ->
+                cover?.visibility = View.VISIBLE
+                if (bmp == null) { skip("no screenshot"); return@diagScreenshot }
+                var best = -1
+                var bestScore = Double.MAX_VALUE
+                var bestTop = 0
+                swatches.forEachIndexed { i, n ->
+                    val r = android.graphics.Rect()
+                    n.getBoundsInScreen(r)
+                    val st = ColorUtil.stripes(bmp, r.left, r.top, r.right, r.bottom)
+                    val sc = ColorUtil.score(st, target)
+                    if (sc < bestScore) { bestScore = sc; best = i; bestTop = st[0] }
+                }
+                if (best < 0 || !click(swatches[best])) { skip("tap failed"); return@diagScreenshot }
+                logRun(getString(R.string.am_picked, best + 1, ColorUtil.hex(bestTop), ColorUtil.hex(target)), true)
+                palettePhase = 1
+                phaseAt = SystemClock.uptimeMillis() // wait again, then press Apply
+            }
+        }, 300)
+    }
+
+    // ---------------------------------------------------------------- diagnostic (auto-match research)
+
+    private var diagMode = false
+    private val diagText = StringBuilder()
+    private val diagShots = ArrayList<android.graphics.Bitmap>()
+    private val BASIC_TAB = listOf("Basic colours", "Basic colors", "Grundfarben", "Basisfarben", "Colori di base", "Colori base")
+
+    /** Opens the Colour palette page and saves everything the app can see there (text + screenshots). */
+    fun diagnose() {
+        if (running) return
+        running = true
+        diagMode = true
+        diagText.setLength(0)
+        diagShots.clear()
+        val v = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
+        diagText.append("Bing Palette $v diagnostic\n")
+        diagText.append("Device: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})\n")
+        diagText.append("Screen: ${screenState()}, ${resources.displayMetrics.widthPixels}x${resources.displayMetrics.heightPixels}\n\n")
+        beginPalette(navigateOnly = true)
+    }
+
+    private fun diagCapture(n: Int) {
+        val root = rootInActiveWindow
+        diagText.append("=== Snapshot $n ===\n")
+        val rects = ArrayList<Pair<String, android.graphics.Rect>>()
+        if (root == null) diagText.append("(no window content)\n") else diagDump(root, 0, rects, intArrayOf(0))
+        diagScreenshot { bmp ->
+            if (bmp != null) {
+                diagShots.add(bmp)
+                if (root != null) {
+                    val target = ColorUtil.mainColourOf(File(cacheDir, "bing.jpg"))
+                    diagText.append("\n--- Swatches (snapshot $n), photo colour ${target?.let { ColorUtil.hex(it) } ?: "?"} ---\n")
+                    findSwatches(root).forEachIndexed { i, sw ->
+                        val r = android.graphics.Rect()
+                        sw.getBoundsInScreen(r)
+                        val st = ColorUtil.stripes(bmp, r.left, r.top, r.right, r.bottom)
+                        val sc = target?.let { String.format(Locale.US, "%.1f", ColorUtil.score(st, it)) } ?: "-"
+                        diagText.append("Colour ${i + 1} $r -> ${st.joinToString(" ") { ColorUtil.hex(it) }} score $sc\n")
+                    }
+                }
+                diagText.append("\n--- Colours of tappable items (snapshot $n) ---\n")
+                for ((name, r) in rects) {
+                    if (r.width() <= 0 || r.height() <= 0) continue
+                    val pts = (1..6).map { i -> r.top + r.height() * (2 * i - 1) / 12 }
+                    val cols = pts.joinToString(" ") { y -> diagColour(bmp, r.centerX(), y) }
+                    diagText.append("$name $r -> $cols\n")
+                }
+            } else {
+                diagText.append("(no screenshot)\n")
+            }
+            diagText.append("\n")
+            val basic = if (n == 1 && root != null) find(root, BASIC_TAB) else null
+            if (basic != null) {
+                click(basic)
+                main.postDelayed({ diagCapture(2) }, 2000)
+            } else {
+                if (n == 1) diagText.append("(Basic colours tab not found)\n")
+                diagFinish()
+            }
+        }
+    }
+
+    private fun diagDump(node: AccessibilityNodeInfo, depth: Int, rects: ArrayList<Pair<String, android.graphics.Rect>>, count: IntArray) {
+        if (depth > 40 || count[0] > 1500) return
+        count[0]++
+        val r = android.graphics.Rect()
+        node.getBoundsInScreen(r)
+        val flags = buildString {
+            if (node.isClickable) append("C")
+            if (node.isCheckable) append("K")
+            if (node.isChecked) append("X")
+            if (node.isSelected) append("S")
+            if (node.isEnabled) append("E")
+            if (node.isScrollable) append("R")
+        }
+        val cls = node.className?.toString()?.substringAfterLast('.') ?: "?"
+        val name = "#${count[0]} $cls"
+        diagText.append("  ".repeat(depth)).append(name)
+            .append(" [").append(flags).append("] ").append(r.toShortString())
+        node.viewIdResourceName?.let { diagText.append(" id=").append(it) }
+        node.text?.let { diagText.append(" text=\"").append(it).append('"') }
+        node.contentDescription?.let { diagText.append(" desc=\"").append(it).append('"') }
+        diagText.append('\n')
+        if (node.isClickable) rects.add(name to r)
+        for (i in 0 until node.childCount) node.getChild(i)?.let { diagDump(it, depth + 1, rects, count) }
+    }
+
+    private fun diagColour(b: android.graphics.Bitmap, x: Int, y: Int): String {
+        if (x < 0 || y < 0 || x >= b.width || y >= b.height) return "-"
+        return String.format("#%06X", 0xFFFFFF and b.getPixel(x, y))
+    }
+
+    private fun diagScreenshot(cb: (android.graphics.Bitmap?) -> Unit) {
+        if (Build.VERSION.SDK_INT < 30) { cb(null); return }
+        try {
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+                override fun onSuccess(r: ScreenshotResult) {
+                    val hb = r.hardwareBuffer
+                    val b = android.graphics.Bitmap.wrapHardwareBuffer(hb, r.colorSpace)
+                        ?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                    hb.close()
+                    cb(b)
+                }
+                override fun onFailure(code: Int) {
+                    diagText.append("screenshot failed, code $code (switch the accessibility service off and on once)\n")
+                    cb(null)
+                }
+            })
+        } catch (e: Exception) {
+            diagText.append("screenshot error: ${e.message}\n")
+            cb(null)
+        }
+    }
+
+    private fun diagFinish() {
+        val text = diagText.toString()
+        val shots = ArrayList(diagShots)
+        diagShots.clear()
+        Thread {
+            var err: String? = null
+            try {
+                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Calendar.getInstance().time)
+                saveDownload("palette_diag_$stamp.txt", "text/plain") { it.write(text.toByteArray()) }
+                shots.forEachIndexed { i, b ->
+                    saveDownload("palette_diag_${stamp}_${i + 1}.png", "image/png") { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                }
+            } catch (e: Exception) {
+                err = e.message ?: e.javaClass.simpleName
+            }
+            main.post {
+                running = false
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                toast(if (err == null) getString(R.string.diag_saved) else getString(R.string.diag_failed, err))
+            }
+        }.start()
+    }
+
+    private fun saveDownload(name: String, mime: String, write: (java.io.OutputStream) -> Unit) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, mime)
+            put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/BingPalette")
+        }
+        val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw RuntimeException("Could not create $name")
+        contentResolver.openOutputStream(uri)!!.use(write)
+    }
+
+    private fun toast(msg: String) {
+        main.post { Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show() }
+    }
+}
